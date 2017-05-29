@@ -3,23 +3,63 @@ public const string resetArg = "%reset";
 
 public const float maxRotorRPM = 60;
 
+public const bool verboseCheck = true;
+
 public Program() {
     init();
 }
 public void Save() {}
 
 public List<Nacelle> nacelles;
+public int rotorCount = 0;
+public int thrusterCount = 0;
 public IMyShipController controller;
 
 public void Main(string argument) {
 	if(argument.Equals(resetArg)) {
 		init();
+	} else {
+		checkNacelles(verboseCheck);
 	}
 
-	displayNacelles(nacelles);
+	// displayNacelles(nacelles);
 
 	foreach(Nacelle n in nacelles) {
 		n.rotor.setFromVec(controller.GetNaturalGravity());
+		// n.rotor.setPos(0);
+
+		// Echo($"\n{Vector3D.Round(n.rotor.theBlock.WorldMatrix.Forward, 2) - Vector3D.Round(n.rotor.theBlock.Top.WorldMatrix.Forward, 2)}");
+		// Echo(n.errStr);
+	}
+}
+
+// checks to see if the nacelles have changed
+public void checkNacelles(bool verbose) {
+	var blocks = new List<IMyTerminalBlock>();
+	echoV("Checking Nacelles...", verbose);
+
+	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(blocks);
+	if(rotorCount != blocks.Count) {
+		echoV($"Rotor count {rotorCount} is out of whack", verbose);
+		getNacelles();
+		return;
+	}
+	blocks.Clear();
+
+	GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks);
+	if(thrusterCount != blocks.Count) {
+		echoV($"Thruster count {thrusterCount} is out of whack", verbose);
+		getNacelles();
+		return;
+	}
+
+	//TODO: check for damage
+	echoV("Everything seems fine.", verbose);
+}
+
+void echoV(string s, bool verbose) {
+	if(verbose) {
+		Echo(s);
 	}
 }
 
@@ -49,9 +89,13 @@ List<Nacelle> getNacelles() {
 	var nacelles = new List<Nacelle>();
 	bool flag;
 
+	rotorCount = 0;
+	thrusterCount = 0;
+
 	// get rotors
 	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(blocks);
 	foreach(IMyMotorStator r in blocks) {
+		rotorCount++;
 		if(false/* TODO: set to not be in a nacelle */) {
 			continue;
 		}
@@ -71,6 +115,7 @@ List<Nacelle> getNacelles() {
 	// get thrusters
 	GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks);
 	foreach(IMyThrust t in blocks) {
+		thrusterCount++;
 		if(false/* TODO: set to not be in a nacelle */) {
 			continue;
 		}
@@ -99,6 +144,10 @@ List<Nacelle> getNacelles() {
 	}
 	blocks.Clear();
 
+	foreach(Nacelle n in nacelles) {
+		n.detectThrustDirection();
+	}
+
 	return nacelles;
 }
 
@@ -123,6 +172,7 @@ void displayNacelles(List<Nacelle> nacelles) {
 }
 
 public class Nacelle {
+	public String errStr = "";
 
 	// physical parts
 	public Rotor rotor;
@@ -133,10 +183,81 @@ public class Nacelle {
 		this.rotor = rotor;
 		this.thrusters = new List<Thruster>();
 	}
+
+	public void detectThrustDirection() {
+		Vector3D engineDirection = Vector3D.Zero;
+		Vector3I thrustDir = Vector3I.Zero;
+		Base6Directions.Direction rotTopUp = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Up);
+		Base6Directions.Direction rotTopDown = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Down);
+
+		// add all the thrusters effective power
+		foreach(Thruster t in thrusters) {
+			Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
+
+			//if its not facing rotor up or rotor down
+			if(!(thrustForward == rotTopUp || thrustForward == rotTopDown)) {
+				// add it in
+				// errStr += $"\nadding thruster:\n{t.theBlock.CustomName}";
+				engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust * (t.isOn ? 1 : 0);
+			} else {
+				// errStr += $"\nexcluding thruster:\n{t.theBlock.CustomName}";
+			}
+		}
+
+		// get single most powerful direction
+		double max = Math.Max(engineDirection.Z, Math.Max(engineDirection.X, engineDirection.Y));
+		double min = Math.Min(engineDirection.Z, Math.Min(engineDirection.X, engineDirection.Y));
+		// errStr += $"\nmax:\n{Math.Round(max, 2)}";
+		// errStr += $"\nmin:\n{Math.Round(min, 2)}";
+		double maxAbs = 0;
+		if(max > -1*min) {
+			maxAbs = max;
+		} else {
+			maxAbs = min;
+		}
+		// errStr += $"\nmaxAbs:\n{Math.Round(maxAbs, 2)}";
+
+		if(maxAbs == engineDirection.X) {
+			if(engineDirection.X >= 0) {
+				thrustDir.X = 1;
+			} else {
+				thrustDir.X = -1;
+			}
+		} else if(maxAbs == engineDirection.Y) {
+			if(engineDirection.Y >= 0) {
+				thrustDir.Y = 1;
+			} else {
+				thrustDir.Y = -1;
+			}
+		} else if(maxAbs == engineDirection.Z) {
+			if(engineDirection.Z >= 0) {
+				thrustDir.Z = 1;
+			} else {
+				thrustDir.Z = -1;
+			}
+		} else {
+			errStr += $"\nERROR (detectThrustDirection):\nmaxAbs doesn't match any engineDirection";
+		}
+
+		//use thrustDir to set rotor offset
+		Base6Directions.Direction rotTopForward = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Forward);
+		Base6Directions.Direction rotTopLeft = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Left);
+		rotor.offset = (float)Math.Acos(rotor.angleBetweenCos(Base6Directions.GetVector(rotTopForward), (Vector3D)thrustDir));
+
+		if(Math.Acos(rotor.angleBetweenCos(Base6Directions.GetVector(rotTopLeft), (Vector3D)thrustDir)) > Math.PI/2) {
+			// rotor.offset = (float)(2*Math.PI - rotor.offset);
+			rotor.offset += (float)Math.PI;
+		}
+
+		// errStr += $"\n{rotor.angleBetweenCos((Vector3D)thrustDir, Base6Directions.GetVector(rotTopForward))}";
+		// errStr += $"\n{rotor.theBlock.CustomName}\nsetting offset to {Math.Round(rotor.offset, 2)}";
+	}
+
 }
 
 public class Thruster {
 	public IMyThrust theBlock;
+	public bool isOn = true;
 
 	public Thruster(IMyThrust thruster) {
 		this.theBlock = thruster;
@@ -148,7 +269,7 @@ public class Rotor {
 	// don't want IMyMotorBase, that includes wheels
 
 	public Vector3D wsAxis;// axis it rotates around in worldspace
-	public float offset = 0;
+	public float offset = 0;// radians
 
 	public string errStr = "";
 
@@ -179,13 +300,15 @@ public class Rotor {
 		float angle = -(float)Math.Acos(angleBetweenCos(theBlock.WorldMatrix.Forward, desiredVec));
 
 		if(Math.Acos(angleBetweenCos(theBlock.WorldMatrix.Left, desiredVec)) > Math.PI/2) {
-			angle = (float)(2*Math.PI - angle);
+			// angle = (float)(2*Math.PI - angle);
+			angle += (float)Math.PI;
 		}
 
-		setPos(angle + (float)(offset * Math.PI / 180));
+		setPos(angle + (float)(offset/* * Math.PI / 180*/));
 	}
 
 	// gets cos(angle between 2 vectors)
+	// cos returns a number between 0 and 1
 	// use Acos to get the angle
 	public double angleBetweenCos(Vector3D a, Vector3D b) {
 		double dot = Vector3D.Dot(a, b);
@@ -206,7 +329,7 @@ public class Rotor {
 	}
 
 	// move rotor to the angle (radians), make it go the shortest way possible
-	void setPos(float x)
+	public void setPos(float x)
 	{
 		theBlock.ApplyAction("OnOff_On");
 		x = cutAngle(x);
