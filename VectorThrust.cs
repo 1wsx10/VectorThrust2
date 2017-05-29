@@ -1,5 +1,6 @@
 
 public const string resetArg = "%reset";
+public const string checkNacellesArg = "%checkNacelles";
 
 public const float maxRotorRPM = 60;
 
@@ -20,6 +21,11 @@ public void Main(string argument) {
 		init();
 	} else {
 		checkNacelles(verboseCheck);
+	}
+	if(argument.Equals(checkNacellesArg)) {
+		foreach(Nacelle n in nacelles) {
+			n.detectThrustDirection();
+		}
 	}
 
 	// displayNacelles(nacelles);
@@ -186,6 +192,7 @@ public class Nacelle {
 
 	public void detectThrustDirection() {
 		Vector3D engineDirection = Vector3D.Zero;
+		Vector3D engineDirectionNeg = Vector3D.Zero;
 		Vector3I thrustDir = Vector3I.Zero;
 		Base6Directions.Direction rotTopUp = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Up);
 		Base6Directions.Direction rotTopDown = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Down);
@@ -197,16 +204,20 @@ public class Nacelle {
 			//if its not facing rotor up or rotor down
 			if(!(thrustForward == rotTopUp || thrustForward == rotTopDown)) {
 				// add it in
-				// errStr += $"\nadding thruster:\n{t.theBlock.CustomName}";
-				engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust * (t.isOn ? 1 : 0);
+				var thrustForwardVec = Base6Directions.GetVector(thrustForward);
+				if(thrustForwardVec.X < 0 || thrustForwardVec.Y < 0 || thrustForwardVec.Z < 0) {
+					engineDirectionNeg += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust * (t.isOn ? 1 : 0);
+				} else {
+					engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust * (t.isOn ? 1 : 0);
+				}
 			} else {
-				// errStr += $"\nexcluding thruster:\n{t.theBlock.CustomName}";
+				// thrusters.Remove(t);
 			}
 		}
 
 		// get single most powerful direction
 		double max = Math.Max(engineDirection.Z, Math.Max(engineDirection.X, engineDirection.Y));
-		double min = Math.Min(engineDirection.Z, Math.Min(engineDirection.X, engineDirection.Y));
+		double min = Math.Min(engineDirectionNeg.Z, Math.Min(engineDirectionNeg.X, engineDirectionNeg.Y));
 		// errStr += $"\nmax:\n{Math.Round(max, 2)}";
 		// errStr += $"\nmin:\n{Math.Round(min, 2)}";
 		double maxAbs = 0;
@@ -217,6 +228,7 @@ public class Nacelle {
 		}
 		// errStr += $"\nmaxAbs:\n{Math.Round(maxAbs, 2)}";
 
+		// TODO: swap onbool for each thruster that isn't in this
 		if(maxAbs == engineDirection.X) {
 			if(engineDirection.X >= 0) {
 				thrustDir.X = 1;
@@ -237,6 +249,7 @@ public class Nacelle {
 			}
 		} else {
 			errStr += $"\nERROR (detectThrustDirection):\nmaxAbs doesn't match any engineDirection";
+			return;
 		}
 
 		//use thrustDir to set rotor offset
@@ -245,12 +258,8 @@ public class Nacelle {
 		rotor.offset = (float)Math.Acos(rotor.angleBetweenCos(Base6Directions.GetVector(rotTopForward), (Vector3D)thrustDir));
 
 		if(Math.Acos(rotor.angleBetweenCos(Base6Directions.GetVector(rotTopLeft), (Vector3D)thrustDir)) > Math.PI/2) {
-			// rotor.offset = (float)(2*Math.PI - rotor.offset);
 			rotor.offset += (float)Math.PI;
 		}
-
-		// errStr += $"\n{rotor.angleBetweenCos((Vector3D)thrustDir, Base6Directions.GetVector(rotTopForward))}";
-		// errStr += $"\n{rotor.theBlock.CustomName}\nsetting offset to {Math.Round(rotor.offset, 2)}";
 	}
 
 }
