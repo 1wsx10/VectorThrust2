@@ -41,7 +41,7 @@ public void checkNacelles(bool verbose) {
 	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(blocks);
 	if(rotorCount != blocks.Count) {
 		echoV($"Rotor count {rotorCount} is out of whack", verbose);
-		getNacelles();
+		nacelles = getNacelles();
 		return;
 	}
 	blocks.Clear();
@@ -49,7 +49,7 @@ public void checkNacelles(bool verbose) {
 	GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks);
 	if(thrusterCount != blocks.Count) {
 		echoV($"Thruster count {thrusterCount} is out of whack", verbose);
-		getNacelles();
+		nacelles = getNacelles();
 		return;
 	}
 
