@@ -46,21 +46,55 @@ public const float zeroGAcceleration = 9.81f;// acceleration in situations with 
 public const float gravCutoff = 0.1f * 9.81f;// if gravity becomes less than this, zeroGAcceleration will kick in
 /////////////////////////////////////////////
 
+private IMyTextPanel screen;
+public bool writeBool = false;
+public void write(string str) {
+	str += "\n";
+	try {
+		screen.WritePublicText(str, writeBool);
+		writeBool = true;
+	} catch(Exception e) {
+		var blocks = new List<IMyTerminalBlock>();
+		GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(blocks);
+		if(blocks.Count == 0) {
+			Echo("No screens available");
+			return;
+		}
+		screen = (IMyTextPanel)blocks[0];
+		bool found = false;
+		for(int i = 0; i < blocks.Count; i++) {
+			if(blocks[i].CustomName.IndexOf("%VectorLCD") != -1) {
+				screen = (IMyTextPanel)blocks[i];
+				found = true;
+			}
+		}
+		if(!found) {
+			Echo("No screen to write text on");
+			return;
+		}
+		screen.WritePublicText(str);
+	}
+}
+
 public Program() {
 	Echo("Just Compiled");
-    init();
-    Echo("Ready to Run");
 }
 public void Save() {}
+
 
 public List<Nacelle> nacelles;
 public int rotorCount = 0;
 public int thrusterCount = 0;
 public IMyShipController controller;
 
+public bool justCompiled = true;
+
 public void Main(string argument) {
+	writeBool = false;
 	Echo("Starting Main");
 	if(argument.Equals(resetArg)) {
+		init();
+	} else if(justCompiled) {
 		init();
 	} else {
 		checkNacelles(verboseCheck);
@@ -69,13 +103,13 @@ public void Main(string argument) {
 		Echo("Checking Nacelles");
 		foreach(Nacelle n in nacelles) {
 			n.detectThrustDirection();
-			Echo($"{n.errStr}");
+			// Echo($"{n.errStr}");
 		}
 	}
+	justCompiled = false;
 
-	/*TODO: look over this*/
 	// get controller position
-	MatrixD controllerMatrix = controller.WorldMatrix;
+	controller = getController();
 
  	// get gravity in world space
 	Vector3D worldGrav = controller.GetNaturalGravity();
@@ -95,18 +129,16 @@ public void Main(string argument) {
 		gravLength = zeroGAcceleration;
 	}
 
-	Vector3D desiredVec = getMovement(controllerMatrix, argument);
+	Vector3D desiredVec = getMovement(controller.WorldMatrix, argument);
+
 
 	// f=ma
 	Vector3D shipWeight = shipMass * worldGrav;
 	// f=ma
 	desiredVec *= shipMass * (float)getAcceleration(gravLength);
 
-	/*TODO: look over previous*/
-
 	// point thrust in opposite direction, add weight. this is force, not acceleration
 	Vector3D requiredVec = -desiredVec + shipWeight;
-	Echo("Vectors done");
 
 	// update thrusters on/off and re-check nacelles direction
 	foreach(Nacelle n in nacelles) {
@@ -114,9 +146,6 @@ public void Main(string argument) {
 			n.detectThrustDirection();
 		}
 	}
-	Echo("nacelle checks done");
-
-
 
 
 	/* TOOD: redo this */
@@ -136,7 +165,6 @@ public void Main(string argument) {
 			nacelleGroups[nacelleGroups.Count-1].Add(nacelles[i]);
 		}
 	}
-	Echo("nacelle groups done");
 
 	// correct for misaligned nacelles
 	Vector3D asdf = Vector3D.Zero;
@@ -164,13 +192,12 @@ public void Main(string argument) {
 			g[i].requiredVec = req;
 			g[i].go();
 			Echo(g[i].errStr);
-			foreach(Thruster t in g[i].activeThrusters) {
-				Echo($"Thruster: {t.theBlock.CustomName}\n{t.errStr}");
-			}
+			// foreach(Thruster t in g[i].activeThrusters) {
+			// 	// Echo($"Thruster: {t.theBlock.CustomName}\n{t.errStr}");
+			// }
 		}
 	}/* end of TODO */
 
-	Echo("all done");
 
 }
 
@@ -239,7 +266,8 @@ public Vector3D getMovement(MatrixD controllerMatrix, string arg) {
 
 		// movement controls
 		try {
-			moveVec = (Vector3)inputs["c.movement"];
+			// moveVec = (Vector3)inputs["c.movement"];
+			moveVec = controller.MoveIndicator;
 		} catch(Exception e) {
 			// no movement
 		}
@@ -269,6 +297,9 @@ public Vector3D getMovement(MatrixD controllerMatrix, string arg) {
 	// 	TODO: parse the arg to get the vector
 	// 	make it desiredVec
 	// }
+	// moveVec = new Vector3D(0,0,-1);
+	// write($"{Vector3D.Round(moveVec, 2)}");
+	// write($"{Vector3D.Round(Vector3D.TransformNormal(moveVec, controllerMatrix), 2)}");
 
 	return Vector3D.TransformNormal(moveVec, controllerMatrix);//turn movement into worldspace
 }/**/
@@ -282,7 +313,7 @@ IMyShipController getController() {
 		return null;
 	}
 
-	IMyShipController cont = /*(IMyShipController)*/blocks[0];
+	IMyShipController cont = blocks[0];
 	int lvl = 0;
 	bool allCockpitsAreFree = true;
 	int prevLvl = 0;
@@ -380,8 +411,10 @@ List<Nacelle> getNacelles() {
 	rotorCount = 0;
 	thrusterCount = 0;
 
+
 	// get rotors
 	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(blocks);
+
 	foreach(IMyMotorStator r in blocks) {
 		rotorCount++;
 		if(false/* TODO: set to not be in a nacelle */) {
@@ -481,17 +514,20 @@ public class Nacelle {
 
 	// final calculations and setting physical components
 	public void go() {
-		errStr = $"\nactive thrusters: {activeThrusters.Count}";
-		errStr += $"\nall thrusters: {thrusters.Count}";
+		errStr = "";
+		// errStr += $"\nactive thrusters: {activeThrusters.Count}";
+		// errStr += $"\nall thrusters: {thrusters.Count}";
 		totalThrust = (float)calcTotalThrust(activeThrusters);
 		if(false/*zeroG*/ /*&& requiredVec.Length() < zeroGFactor*/) {
 			// rotor.setFromVec((controller.WorldMatrix.Down * zeroGFactor) - velocity);
 		} else {
+			rotor.getAxis();
 			rotor.setFromVec(requiredVec);
 		}
 
 		//set the thrust for each engine
 		for(int i = 0; i < activeThrusters.Count; i++) {
+			errStr += activeThrusters[i].errStr;
 			activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalThrust);
 		}
 	}
