@@ -10,6 +10,9 @@ public bool jetpack = true;
 
 public bool controlModule = true;
 
+public bool standby = false;
+// this stops all calculations and everything is off in standby mode, good if you want to stop flying
+// but dont want to turn the craft off.
 
 public const float defaultAccel = 1f;//this is the default target acceleration you see on the display
 // if you want to change the default, change this
@@ -54,56 +57,58 @@ public const float zeroGAcceleration = 9.81f;// acceleration in situations with 
 public const float gravCutoff = 0.1f * 9.81f;// if gravity becomes less than this, zeroGAcceleration will kick in
 /////////////////////////////////////////////
 
-private IMyTextPanel screen;
-public bool writeBool = false;
-public void write(string str) {
-	str += "\n";
-	try {
-		screen.WritePublicText(str, writeBool);
-		writeBool = true;
-	} catch(Exception e) {
-		var blocks = new List<IMyTerminalBlock>();
-		GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(blocks);
-		if(blocks.Count == 0) {
-			Echo("No screens available");
-			return;
-		}
-		screen = (IMyTextPanel)blocks[0];
-		bool found = false;
-		for(int i = 0; i < blocks.Count; i++) {
-			if(blocks[i].CustomName.IndexOf("%VectorLCD") != -1) {
-				screen = (IMyTextPanel)blocks[i];
-				found = true;
-			}
-		}
-		if(!found) {
-			Echo("No screen to write text on");
-			return;
-		}
-		screen.WritePublicText(str);
-	}
-}
-
 public Program() {
 	Echo("Just Compiled");
+	programCounter = 0;
 }
 public void Save() {}
 
-
-public List<Nacelle> nacelles;
-public int rotorCount = 0;
-public int thrusterCount = 0;
-public IMyShipController controller;
-
-public bool justCompiled = true;
+//at 60 fps this will last for 9000+ hrs before going negative
+public long programCounter;
 
 public void Main(string argument) {
+	// going into standby mode
+	if(argument.Contains(standbyArg) && !standby) {
+		standby = !standby;
+		foreach(Nacelle n in nacelles) {
+			n.rotor.theBlock.ApplyAction("OnOff_Off");
+			foreach(Thruster t in n.thrusters) {
+				t.theBlock.ApplyAction("OnOff_Off");
+			}
+		}
+	// coming back from standby mode
+	} else if(argument.Contains(standbyArg) && standby) {
+		standby = !standby;
+		foreach(Nacelle n in nacelles) {
+			n.rotor.theBlock.ApplyAction("OnOff_On");
+			foreach(Thruster t in n.thrusters) {
+				if(t.isOn) {
+					t.theBlock.ApplyAction("OnOff_On");
+				}
+			}
+		}
+	}
+
 	writeBool = false;
+	if(standby) {
+		Echo("Standing By");
+		write("Standing By");
+		return;
+	} else {
+		Echo("Running "+ programCounter++);
+		write("Running "+ programCounter++);
+		write($"dampers={dampeners}");
+		write($"jetpack={jetpack}");
+		// write($"dampers={dampeners}");
+	}
+
 	Echo("Starting Main");
 	if(argument.Equals(resetArg)) {
 		init();
 	} else if(justCompiled) {
+		Echo("just compiled... doing init");
 		init();
+		Echo("finished init");
 	} else {
 		checkNacelles(verboseCheck);
 	}
@@ -114,6 +119,7 @@ public void Main(string argument) {
 			// Echo($"{n.errStr}");
 		}
 	}
+
 	justCompiled = false;
 
 	// get controller position
@@ -171,7 +177,7 @@ public void Main(string argument) {
 
 	// update thrusters on/off and re-check nacelles direction
 	foreach(Nacelle n in nacelles) {
-		if(!n.validateThrusters()) {
+		if(!n.validateThrusters(jetpack)) {
 			n.detectThrustDirection();
 		}
 	}
@@ -219,7 +225,8 @@ public void Main(string argument) {
 		Vector3D req = g[0].requiredVec / g.Count;
 		for(int i = 0; i < g.Count; i++) {
 			g[i].requiredVec = req;
-			g[i].go();
+			g[i].go(jetpack);
+			write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
 			Echo(g[i].errStr);
 			// foreach(Thruster t in g[i].activeThrusters) {
 			// 	// Echo($"Thruster: {t.theBlock.CustomName}\n{t.errStr}");
@@ -238,6 +245,43 @@ public bool dampenersIsPressed = false;
 public bool plusIsPressed = false;
 public bool minusIsPressed = false;
 
+private IMyTextPanel screen;
+public bool writeBool = false;
+
+public List<Nacelle> nacelles = new List<Nacelle>();
+public int rotorCount = 0;
+public int thrusterCount = 0;
+public IMyShipController controller;
+
+public bool justCompiled = true;
+
+public void write(string str) {
+	str += "\n";
+	try {
+		screen.WritePublicText(str, writeBool);
+		writeBool = true;
+	} catch(Exception e) {
+		var blocks = new List<IMyTerminalBlock>();
+		GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(blocks);
+		if(blocks.Count == 0) {
+			Echo("No screens available");
+			return;
+		}
+		screen = (IMyTextPanel)blocks[0];
+		bool found = false;
+		for(int i = 0; i < blocks.Count; i++) {
+			if(blocks[i].CustomName.IndexOf("%VectorLCD") != -1) {
+				screen = (IMyTextPanel)blocks[i];
+				found = true;
+			}
+		}
+		if(!found) {
+			Echo("No screen to write text on");
+			return;
+		}
+		screen.WritePublicText(str);
+	}
+}
 
 double getAcceleration(double gravity) {
 	return Math.Pow(accelBase, accelExponent) * gravity * defaultAccel;
@@ -250,7 +294,6 @@ public Vector3D project(Vector3D a, Vector3D b) {
 	return b * aDotB / bDotB;
 }
 
-/**/
 // TODO: look over this
 public Vector3D getMovement(MatrixD controllerMatrix, string arg) {
 	Vector3 moveVec = Vector3.Zero;
@@ -329,16 +372,8 @@ public Vector3D getMovement(MatrixD controllerMatrix, string arg) {
 		accelExponent = 0;
 	}
 
-	// if(arg.Contains("%Vector")) {
-	// 	TODO: parse the arg to get the vector
-	// 	make it desiredVec
-	// }
-	// moveVec = new Vector3D(0,0,-1);
-	// write($"{Vector3D.Round(moveVec, 2)}");
-	// write($"{Vector3D.Round(Vector3D.TransformNormal(moveVec, controllerMatrix), 2)}");
-
 	return Vector3D.TransformNormal(moveVec, controllerMatrix);//turn movement into worldspace
-}/**/
+}
 
 
 IMyShipController getController() {
@@ -500,8 +535,8 @@ List<Nacelle> getNacelles() {
 
 	}
 	blocks.Clear();
-
 	foreach(Nacelle n in nacelles) {
+		n.validateThrusters(jetpack);
 		n.detectThrustDirection();
 	}
 
@@ -533,23 +568,26 @@ public class Nacelle {
 
 	// physical parts
 	public Rotor rotor;
-	public List<Thruster> thrusters;
-	public List<Thruster> activeThrusters;
+	public List<Thruster> thrusters;// all the thrusters
+	public List<Thruster> availableThrusters;// <= thrusters: the ones the user chooses to be used (ShowInTerminal)
+	public List<Thruster> activeThrusters;// <= availableThrusters: the ones that are facing the direction that produces the most thrust (only recalculated if available thrusters changes)
 
 	public Vector3D requiredVec = Vector3D.Zero;
 
 	public float totalThrust = 0;
+	public int detectThrustCounter = 0;
 
 	public Nacelle() {}// don't use this if it is possible for the instance to be kept
 	public Nacelle(Rotor rotor) {
 		this.rotor = rotor;
 		this.thrusters = new List<Thruster>();
+		this.availableThrusters = new List<Thruster>();
 		this.activeThrusters = new List<Thruster>();
 		errStr = "";
 	}
 
 	// final calculations and setting physical components
-	public void go() {
+	public void go(bool jetpack) {
 		errStr = "";
 		// errStr += $"\nactive thrusters: {activeThrusters.Count}";
 		// errStr += $"\nall thrusters: {thrusters.Count}";
@@ -563,7 +601,9 @@ public class Nacelle {
 
 		//set the thrust for each engine
 		for(int i = 0; i < activeThrusters.Count; i++) {
-			errStr += activeThrusters[i].errStr;
+			if(jetpack) {
+				activeThrusters[i].theBlock.ApplyAction("OnOff_Off");
+			}
 			activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalThrust);
 		}
 	}
@@ -577,18 +617,29 @@ public class Nacelle {
 	}
 
 	//true if all thrusters are good
-	public bool validateThrusters() {
-		bool flag = true;
+	public bool validateThrusters(bool jetpack) {
+		bool needsUpdate = false;
 		foreach(Thruster t in thrusters) {
-			t.updateStatus();
-			if(!t.isOn && t.isActive) {
-				flag = false;
+			if(availableThrusters.Contains(t)) {//is available
+				if(!(t.theBlock.ShowInTerminal && t.theBlock.IsFunctional) //not (shown and functional)
+					|| (t.isOn && !t.theBlock.GetValue<bool>("OnOff") && jetpack)) {//or (was on and is now off and they haven't turned jetpack off)
+					availableThrusters.Remove(t);
+					needsUpdate = true;
+				}
+			} else {//not available
+				if((t.theBlock.ShowInTerminal && t.theBlock.IsFunctional) //(shown and functional)
+					&& (!t.isOn && t.theBlock.GetValue<bool>("OnOff"))) {//and (was off and is now on)
+					availableThrusters.Add(t);
+					needsUpdate = true;
+					t.isOn = true;
+				}
 			}
 		}
-		return flag;
+		return !needsUpdate;
 	}
 
 	public void detectThrustDirection() {
+		detectThrustCounter++;
 		Vector3D engineDirection = Vector3D.Zero;
 		Vector3D engineDirectionNeg = Vector3D.Zero;
 		Vector3I thrustDir = Vector3I.Zero;
@@ -596,7 +647,7 @@ public class Nacelle {
 		Base6Directions.Direction rotTopDown = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Down);
 
 		// add all the thrusters effective power
-		foreach(Thruster t in thrusters) {
+		foreach(Thruster t in availableThrusters) {
 			Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
 
 			//if its not facing rotor up or rotor down
@@ -604,9 +655,9 @@ public class Nacelle {
 				// add it in
 				var thrustForwardVec = Base6Directions.GetVector(thrustForward);
 				if(thrustForwardVec.X < 0 || thrustForwardVec.Y < 0 || thrustForwardVec.Z < 0) {
-					engineDirectionNeg += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust * (t.isOn ? 1 : 0);
+					engineDirectionNeg += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust/* * (t.isOn ? 1 : 0)*/;
 				} else {
-					engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust * (t.isOn ? 1 : 0);
+					engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust/* * (t.isOn ? 1 : 0)*/;
 				}
 			} else {
 				// thrusters.Remove(t);
@@ -685,25 +736,23 @@ public class Nacelle {
 			rotor.offset = (float)(2*Math.PI - rotor.offset);
 		}
 
+		foreach(Thruster t in thrusters) {
+			t.theBlock.ApplyAction("OnOff_Off");
+			t.isOn = false;
+		}
+
 		// put thrusters into the active list
 		Base6Directions.Direction thrDir = Base6Directions.GetDirection(thrustDir);
-			errStr += $"\nactiveThrusters count: {activeThrusters.Count}";
 		if(activeThrusters.Count > 0) {
 			activeThrusters.Clear();
 		}
-			errStr += $"\nactiveThrusters count: {activeThrusters.Count}";
-		foreach(Thruster t in thrusters) {
-			if(!t.isOn) {
-				t.isActive = false;
-				continue;
-			}
+		foreach(Thruster t in availableThrusters) {
 			Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
 
 			if(thrDir == thrustForward) {
+				t.theBlock.ApplyAction("OnOff_On");
+				t.isOn = true;
 				activeThrusters.Add(t);
-				t.isActive = true;
-			} else {
-				t.isActive = false;
 			}
 		}
 	}
@@ -712,25 +761,12 @@ public class Nacelle {
 
 public class Thruster {
 	public IMyThrust theBlock;
-	public string errStr = "";
 
 	// stays the same when in standby, if not in standby, this gets updated to weather or not the thruster is on
 	public bool isOn = true;
 
-	// weather or not it is in the active list
-	public bool isActive = false;
-
 	public Thruster(IMyThrust thruster) {
 		this.theBlock = thruster;
-	}
-
-	public void updateStatus() {
-		errStr = "";
-		isOn = theBlock.GetValue<bool>("OnOff");
-
-		if(!theBlock.IsFunctional) {
-			isOn = false;
-		}
 	}
 
 	public void setThrust(Vector3D thrustVec) {
@@ -743,7 +779,6 @@ public class Thruster {
 
 		thrust = (thrust > 100 ? 100 : thrust);
 		thrust = (thrust < 0 ? 0 : thrust);
-		errStr += $"thrust: {thrust}";
 		// Program.Clamp(thrust, 100, 0);
 		theBlock.SetValue<float>("Override", (float)thrust);// apply the thrust
 	}
