@@ -1,3 +1,8 @@
+public float speedLimit = 90;//speed limit of your game
+//this is because you cant disable rotor safety lock
+//the best you can do is set the safety lock as max speed of the game.
+//default is 100m/s i recommend subtract 10 and set it as that.
+//make sure all your rotors safety lock is at max speed
 
 // weather or not dampeners or thrusters are on when you start the script
 public bool dampeners = true;
@@ -16,6 +21,9 @@ public const float defaultAccel = 1f;//this is the default target acceleration y
 public const float accelBase = 1.5f;//accel = defaultAccel * g * base^exponent
 // your +, - and 0 keys increment, decrement and reset the exponent respectively
 // this means increasing the base will increase the amount your + and - change target cceleration
+
+// multiplier for dampeners, higher is stronger dampeners
+public const float dampenersModifier = 0.1f;
 
 // arguments, you can change these to change what text you run the programmable block with
 public const string standbyArg = "%standby";
@@ -131,6 +139,26 @@ public void Main(string argument) {
 
 	Vector3D desiredVec = getMovement(controller.WorldMatrix, argument);
 
+	//safety, dont go over max speed
+	if(shipVelocity.Length() > speedLimit) {
+		desiredVec -= shipVelocity;
+	}
+
+	if(dampeners) {
+		Vector3D dampVec = Vector3D.Zero;
+		if(desiredVec != Vector3D.Zero) {
+			// cancel backwards movement
+			if(Vector3D.Dot(desiredVec, shipVelocity) < 0)//if you want to go oppisite to velocity
+				dampVec = project(shipVelocity, desiredVec);
+			// cancel sideways movement
+			dampVec += Vector3D.Reject(shipVelocity, desiredVec);
+		} else {
+			// no desiredVec, just use shipVelocity
+			dampVec = shipVelocity;
+		}
+		desiredVec -= dampVec * dampenersModifier;
+	}
+
 
 	// f=ma
 	Vector3D shipWeight = shipMass * worldGrav;
@@ -139,6 +167,7 @@ public void Main(string argument) {
 
 	// point thrust in opposite direction, add weight. this is force, not acceleration
 	Vector3D requiredVec = -desiredVec + shipWeight;
+
 
 	// update thrusters on/off and re-check nacelles direction
 	foreach(Nacelle n in nacelles) {
@@ -212,6 +241,13 @@ public bool minusIsPressed = false;
 
 double getAcceleration(double gravity) {
 	return Math.Pow(accelBase, accelExponent) * gravity * defaultAccel;
+}
+
+//projects a onto b
+public Vector3D project(Vector3D a, Vector3D b) {
+	double aDotB = Vector3D.Dot(a, b);
+	double bDotB = Vector3D.Dot(b, b);
+	return b * aDotB / bDotB;
 }
 
 /**/
