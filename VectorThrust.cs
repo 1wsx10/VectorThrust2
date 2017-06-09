@@ -572,6 +572,7 @@ public class Nacelle {
 	public List<Thruster> availableThrusters;// <= thrusters: the ones the user chooses to be used (ShowInTerminal)
 	public List<Thruster> activeThrusters;// <= availableThrusters: the ones that are facing the direction that produces the most thrust (only recalculated if available thrusters changes)
 
+	public bool oldJetpack = true;
 	public Vector3D requiredVec = Vector3D.Zero;
 
 	public float totalThrust = 0;
@@ -601,11 +602,15 @@ public class Nacelle {
 
 		//set the thrust for each engine
 		for(int i = 0; i < activeThrusters.Count; i++) {
-			if(jetpack) {
+			if(!jetpack) {
+				activeThrusters[i].setThrust(0);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_Off");
+			} else {
+				activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalThrust);
+				activeThrusters[i].theBlock.ApplyAction("OnOff_On");
 			}
-			activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalThrust);
 		}
+		oldJetpack = jetpack;
 	}
 
 	public float calcTotalThrust(List<Thruster> thrusters) {
@@ -622,7 +627,11 @@ public class Nacelle {
 		foreach(Thruster t in thrusters) {
 			if(availableThrusters.Contains(t)) {//is available
 				if(!(t.theBlock.ShowInTerminal && t.theBlock.IsFunctional) //not (shown and functional)
-					|| (t.isOn && !t.theBlock.GetValue<bool>("OnOff") && jetpack)) {//or (was on and is now off and they haven't turned jetpack off)
+					|| (t.isOn && !t.theBlock.GetValue<bool>("OnOff") //or (was on and is now off)
+					&& (jetpack && oldJetpack))) {//if jetpack is on, the thruster has been turned off
+				//if jetpack is off, the thruster should still be in the group
+
+					//remove the thruster
 					availableThrusters.Remove(t);
 					needsUpdate = true;
 				}
