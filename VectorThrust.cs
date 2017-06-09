@@ -6,7 +6,7 @@ public float speedLimit = 90;//speed limit of your game
 
 // weather or not dampeners or thrusters are on when you start the script
 public bool dampeners = true;
-public bool jetpack = true;
+public bool jetpack = false;
 
 public bool controlModule = true;
 
@@ -27,6 +27,9 @@ public const float accelBase = 1.5f;//accel = defaultAccel * g * base^exponent
 
 // multiplier for dampeners, higher is stronger dampeners
 public const float dampenersModifier = 0.1f;
+
+public const string LCDName = "%VectorLCD";
+public const string TimName = "%VectorTim";
 
 // arguments, you can change these to change what text you run the programmable block with
 public const string standbyArg = "%standby";
@@ -67,9 +70,34 @@ public void Save() {}
 public long programCounter;
 
 public void Main(string argument) {
+	writeBool = false;
+	justCompiled = false;
+
+	Echo("Running "+ programCounter++);
+	String a = "";
+	switch(programCounter/10%4) {
+		case 0:
+			a = "|";
+		break;
+		case 1:
+			a = "\\";
+		break;
+		case 2:
+			a = "-";
+		break;
+		case 3:
+			a = "/";
+		break;
+	}
+	write(a);
+
+	Echo("Starting Main");
+	argument = argument.ToLower();
+	bool togglePower = argument.Contains(standbyArg.ToLower());
+
 	// going into standby mode
-	if(argument.Contains(standbyArg) && !standby) {
-		standby = !standby;
+	if(togglePower && !standby) {
+		standby = true;
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_Off");
 			foreach(Thruster t in n.thrusters) {
@@ -77,8 +105,8 @@ public void Main(string argument) {
 			}
 		}
 	// coming back from standby mode
-	} else if(argument.Contains(standbyArg) && standby) {
-		standby = !standby;
+	} else if(togglePower && standby) {
+		standby = false;
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_On");
 			foreach(Thruster t in n.thrusters) {
@@ -89,30 +117,14 @@ public void Main(string argument) {
 		}
 	}
 
-	writeBool = false;
-	if(standby) {
-		Echo("Standing By");
-		write("Standing By");
-		return;
-	} else {
-		Echo("Running "+ programCounter++);
-		write("Running "+ programCounter++);
-		write($"dampers={dampeners}");
-		write($"jetpack={jetpack}");
-		// write($"dampers={dampeners}");
-	}
-
-	Echo("Starting Main");
-	if(argument.Equals(resetArg)) {
-		init();
-	} else if(justCompiled) {
-		Echo("just compiled... doing init");
-		init();
-		Echo("finished init");
+	if(argument.Contains(resetArg.ToLower()) || controller == null || timer == null || justCompiled) {
+		if(!init()) {
+			return;
+		}
 	} else {
 		checkNacelles(verboseCheck);
 	}
-	if(argument.Equals(checkNacellesArg)) {
+	if(argument.Contains(checkNacellesArg.ToLower())) {
 		Echo("Checking Nacelles");
 		foreach(Nacelle n in nacelles) {
 			n.detectThrustDirection();
@@ -120,10 +132,17 @@ public void Main(string argument) {
 		}
 	}
 
-	justCompiled = false;
-
-	// get controller position
-	controller = getController();
+	if(standby) {
+		Echo("Standing By");
+		write("Standing By");
+		return;
+	} else {
+		write($"dampers={dampeners}");
+		write($"jetpack={jetpack}");
+		timer.Trigger();
+		timer.StartCountdown();
+		// write($"dampers={dampeners}");
+	}
 
  	// get gravity in world space
 	Vector3D worldGrav = controller.GetNaturalGravity();
@@ -226,7 +245,7 @@ public void Main(string argument) {
 		for(int i = 0; i < g.Count; i++) {
 			g[i].requiredVec = req;
 			g[i].go(jetpack);
-			write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
+			// write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
 			Echo(g[i].errStr);
 			// foreach(Thruster t in g[i].activeThrusters) {
 			// 	// Echo($"Thruster: {t.theBlock.CustomName}\n{t.errStr}");
@@ -248,12 +267,35 @@ public bool minusIsPressed = false;
 private IMyTextPanel screen;
 public bool writeBool = false;
 
+public IMyShipController controller;
+public IMyTimerBlock timer = null;
 public List<Nacelle> nacelles = new List<Nacelle>();
 public int rotorCount = 0;
 public int thrusterCount = 0;
-public IMyShipController controller;
 
 public bool justCompiled = true;
+
+
+
+public IMyTimerBlock getTimer() {
+	List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMyTimerBlock>(blocks);
+
+	for(int i = blocks.Count-1; i >= 0; i--) {
+		if(!blocks[i].CustomName.ToLower().Contains(TimName.ToLower())) {//not named as the vector timer
+			// remove it from the list
+			blocks.Remove(blocks[i]);
+		}
+	}
+
+	if(blocks.Count > 0) {
+		//use first one
+		return (IMyTimerBlock)blocks[0];
+	} else {
+		Echo($"ERROR: no timer found\nYou need to set a timer block to run the programmable block and put '{TimName}' in its name");
+		return null;
+	}
+}
 
 public void write(string str) {
 	str += "\n";
@@ -270,7 +312,7 @@ public void write(string str) {
 		screen = (IMyTextPanel)blocks[0];
 		bool found = false;
 		for(int i = 0; i < blocks.Count; i++) {
-			if(blocks[i].CustomName.IndexOf("%VectorLCD") != -1) {
+			if(blocks[i].CustomName.IndexOf(LCDName) != -1) {
 				screen = (IMyTextPanel)blocks[i];
 				found = true;
 			}
@@ -356,19 +398,19 @@ public Vector3D getMovement(MatrixD controllerMatrix, string arg) {
 		// float roll = controller.RollIndecator;
 	}
 
-	if(arg.Contains(dampenersArg)) {
+	if(arg.Contains(dampenersArg.ToLower())) {
 		dampeners = !dampeners;
 	}
-	if(arg.Contains(jetpackArg)) {
+	if(arg.Contains(jetpackArg.ToLower())) {
 		jetpack = !jetpack;
 	}
-	if(arg.Contains(raiseAccelArg)) {
+	if(arg.Contains(raiseAccelArg.ToLower())) {
 		accelExponent++;
 	}
-	if(arg.Contains(lowerAccelArg)) {
+	if(arg.Contains(lowerAccelArg.ToLower())) {
 		accelExponent--;
 	}
-	if(arg.Contains(resetAccelArg)) {
+	if(arg.Contains(resetAccelArg.ToLower())) {
 		accelExponent = 0;
 	}
 
@@ -453,9 +495,22 @@ void echoV(string s, bool verbose) {
 	}
 }
 
-public void init() {
+public bool init() {
+	Echo("init");
 	nacelles = getNacelles();
-	controller = getController();
+	if(controller == null) {
+		controller = getController();
+		if(controller == null) {
+			return false;
+		}
+	}
+	if(timer == null) {
+		timer = getTimer();
+		if(timer == null) {
+			return false;
+		}
+	}
+	return true;
 }
 /*
 IMyShipController getController() {
@@ -532,11 +587,11 @@ List<Nacelle> getNacelles() {
 		// it's on the end of a rotor
 		Thruster thruster = new Thruster(t);
 		nacelle.thrusters.Add(thruster);
+		nacelle.availableThrusters.Add(thruster);
 
 	}
-	blocks.Clear();
 	foreach(Nacelle n in nacelles) {
-		n.validateThrusters(jetpack);
+		// n.validateThrusters(jetpack);
 		n.detectThrustDirection();
 	}
 
@@ -749,12 +804,10 @@ public class Nacelle {
 			t.theBlock.ApplyAction("OnOff_Off");
 			t.isOn = false;
 		}
+		activeThrusters.Clear();
 
 		// put thrusters into the active list
 		Base6Directions.Direction thrDir = Base6Directions.GetDirection(thrustDir);
-		if(activeThrusters.Count > 0) {
-			activeThrusters.Clear();
-		}
 		foreach(Thruster t in availableThrusters) {
 			Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
 
