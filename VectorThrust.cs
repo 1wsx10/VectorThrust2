@@ -39,7 +39,6 @@ public const string raiseAccelArg = "%raiseAccel";
 public const string lowerAccelArg = "%lowerAccel";
 public const string resetAccelArg = "%resetAccel";
 public const string resetArg = "%reset";
-public const string checkNacellesArg = "%checkNacelles";
 
 // control module gamepad bindings
 // type "/cm showinputs" into chat
@@ -63,11 +62,15 @@ public const float gravCutoff = 0.1f * 9.81f;// if gravity becomes less than thi
 public Program() {
 	Echo("Just Compiled");
 	programCounter = 0;
+	gotNacellesCount = 0;
+	updateNacellesCount = 0;
 }
 public void Save() {}
 
 //at 60 fps this will last for 9000+ hrs before going negative
 public long programCounter;
+public long gotNacellesCount;
+public long updateNacellesCount;
 
 public void Main(string argument) {
 	writeBool = false;
@@ -121,16 +124,13 @@ public void Main(string argument) {
 		if(!init()) {
 			return;
 		}
-	} else {
-		checkNacelles(verboseCheck);
 	}
-	if(argument.Contains(checkNacellesArg.ToLower())) {
-		Echo("Checking Nacelles");
-		foreach(Nacelle n in nacelles) {
-			n.detectThrustDirection();
-			// Echo($"{n.errStr}");
-		}
+
+	if(updateNacelles) {
+		nacelles = getNacelles();
+		updateNacelles = false;
 	}
+	checkNacelles(verboseCheck);
 
 	if(standby) {
 		Echo("Standing By");
@@ -194,8 +194,13 @@ public void Main(string argument) {
 
 	// update thrusters on/off and re-check nacelles direction
 	foreach(Nacelle n in nacelles) {
-		if(!n.validateThrusters(jetpack)) {
+		if(n.needsUpdate) {
+			updateNacellesCount++;
 			n.detectThrustDirection();
+			n.needsUpdate = false;
+		}
+		if(!n.validateThrusters(jetpack)) {
+			n.needsUpdate = true;
 		}
 	}
 
@@ -255,7 +260,9 @@ public void Main(string argument) {
 	write("Target Accel: " + Math.Round(getAcceleration(gravLength)/gravLength, 2) + "g");
 	write("Thrusters: " + jetpack);
 	write("Dampeners: " + dampeners);
-	write("Active Nacelles: " + nacelles.Count);
+	write("Active Nacelles: " + nacelles.Count);//TODO: make activeNacelles account for the number of nacelles that are actually active (activeThrusters.Count > 0)
+	// write("Got Nacelles: " + gotNacellesCount);
+	// write("Update Nacelles: " + updateNacellesCount);
 }
 
 
@@ -274,6 +281,7 @@ public IMyTimerBlock timer = null;
 public List<Nacelle> nacelles = new List<Nacelle>();
 public int rotorCount = 0;
 public int thrusterCount = 0;
+public bool updateNacelles = false;
 
 public bool justCompiled = true;
 
@@ -475,7 +483,8 @@ public void checkNacelles(bool verbose) {
 	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(blocks);
 	if(rotorCount != blocks.Count) {
 		echoV($"Rotor count {rotorCount} is out of whack", verbose);
-		nacelles = getNacelles();
+		// nacelles = getNacelles();
+		updateNacelles = true;
 		return;
 	}
 	blocks.Clear();
@@ -483,7 +492,8 @@ public void checkNacelles(bool verbose) {
 	GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks);
 	if(thrusterCount != blocks.Count) {
 		echoV($"Thruster count {thrusterCount} is out of whack", verbose);
-		nacelles = getNacelles();
+		// nacelles = getNacelles();
+		updateNacelles = true;
 		return;
 	}
 
@@ -532,6 +542,7 @@ IMyShipController getController() {
 // G(thrusters * rotors)
 // gets all the rotors and thrusters
 List<Nacelle> getNacelles() {
+	gotNacellesCount++;
 	var blocks = new List<IMyTerminalBlock>();
 	var nacelles = new List<Nacelle>();
 	bool flag;
@@ -592,9 +603,13 @@ List<Nacelle> getNacelles() {
 		nacelle.availableThrusters.Add(thruster);
 
 	}
-	foreach(Nacelle n in nacelles) {
-		// n.validateThrusters(jetpack);
-		n.detectThrustDirection();
+	for(int i = nacelles.Count-1; i >= 0; i--) {
+		if(nacelles[i].thrusters.Count == 0) {
+			nacelles.Remove(nacelles[i]);
+			continue;
+		}
+		nacelles[i].validateThrusters(jetpack);
+		nacelles[i].detectThrustDirection();
 	}
 
 	return nacelles;
@@ -634,6 +649,7 @@ public class Nacelle {
 
 	public float totalThrust = 0;
 	public int detectThrustCounter = 0;
+	public bool needsUpdate = false;
 
 	public Nacelle() {}// don't use this if it is possible for the instance to be kept
 	public Nacelle(Rotor rotor) {
