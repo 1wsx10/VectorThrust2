@@ -137,8 +137,6 @@ public void Main(string argument) {
 		write("Standing By");
 		return;
 	} else {
-		write($"dampers={dampeners}");
-		write($"jetpack={jetpack}");
 		timer.Trigger();
 		timer.StartCountdown();
 		// write($"dampers={dampeners}");
@@ -254,6 +252,10 @@ public void Main(string argument) {
 	}/* end of TODO */
 
 
+	write("Target Accel: " + Math.Round(getAcceleration(gravLength)/gravLength, 2) + "g");
+	write("Thrusters: " + jetpack);
+	write("Dampeners: " + dampeners);
+	write("Active Nacelles: " + nacelles.Count);
 }
 
 
