@@ -899,6 +899,23 @@ public class Rotor {
 		}
 	}
 
+	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
+	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection) {
+		double errorScale = Math.PI;
+
+		Vector3D angle = Vector3D.Cross(currentDirection, targetDirection);
+		// Project onto rotor
+		double err = angle.Dot(GetWorldMatrix(rotor).Up);
+
+		err *= errorScale;
+		rotor.TargetVelocity = (float)err;
+	}
+
+	// TODO: test this
+	public void setFromVecNew(Vector3D desiredVec) {
+		PointRotorAtVector(theBlock, desiredVec, theBlock.Top.WorldMatrix.Forward));
+	}
+
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
 	public void setFromVec(Vector3D desiredVec) {
