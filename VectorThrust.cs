@@ -677,7 +677,10 @@ public class Nacelle {
 			// rotor.setFromVec((controller.WorldMatrix.Down * zeroGFactor) - velocity);
 		} else {
 			rotor.getAxis();
-			rotor.setFromVec(requiredVec);
+			// rotor.setFromVec(requiredVec);
+			rotor.setFromVecNew(requiredVec);
+			errStr += rotor.errStr;
+			rotor.errStr = "";
 		}
 
 		//set the thrust for each engine
@@ -815,15 +818,16 @@ public class Nacelle {
 		}
 
 		// use thrustDir to set rotor offset
-		Base6Directions.Direction rotTopForward = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Forward);
-		Base6Directions.Direction rotTopLeft = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Left);
-		rotor.offset = (float)Math.Acos(rotor.angleBetweenCos(Base6Directions.GetVector(rotTopForward), (Vector3D)thrustDir));
+		rotor.setPointDir((Vector3D)thrustDir);
+		// Base6Directions.Direction rotTopForward = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Forward);
+		// Base6Directions.Direction rotTopLeft = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Left);
+		// rotor.offset = (float)Math.Acos(rotor.angleBetweenCos(Base6Directions.GetVector(rotTopForward), (Vector3D)thrustDir));
 
 		// disambiguate
-		if(Math.Acos(rotor.angleBetweenCos(Base6Directions.GetVector(rotTopLeft), (Vector3D)thrustDir)) > Math.PI/2) {
+		// if(false && Math.Acos(rotor.angleBetweenCos(Base6Directions.GetVector(rotTopLeft), (Vector3D)thrustDir)) > Math.PI/2) {
 			// rotor.offset += (float)Math.PI;
-			rotor.offset = (float)(2*Math.PI - rotor.offset);
-		}
+		// 	rotor.offset = (float)(2*Math.PI - rotor.offset);
+		// }
 
 		foreach(Thruster t in thrusters) {
 			t.theBlock.ApplyAction("OnOff_Off");
@@ -888,13 +892,25 @@ public class Rotor {
 	// don't want IMyMotorBase, that includes wheels
 
 	public Vector3D wsAxis;// axis it rotates around in worldspace
+
+	// Depreciated, this is for the old setFromVec
 	public float offset = 0;// radians
+
+	public Vector3D direction = Vector3D.Zero;//offset relative to the head
+
+	public const magicRotorNumber = 5;
 
 	public string errStr = "";
 
 	public Rotor(IMyMotorStator rotor) {
 		this.theBlock = rotor;
 		getAxis();
+	}
+
+	public void setPointDir(Vector3D dir) {
+		// MatrixD inv = MatrixD.Invert(theBlock.Top.WorldMatrix);
+		// direction = Vector3D.TransformNormal(dir, inv);
+		this.direction = dir;
 	}
 
 	// gets the rotor axis (worldmatrix.up)
@@ -908,24 +924,29 @@ public class Rotor {
 
 	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
 	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection) {
-		double errorScale = Math.PI;
+		double errorScale = Math.PI * magicRotorNumber;
 
-		Vector3D angle = Vector3D.Cross(currentDirection, targetDirection);
+		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
-		double err = angle.Dot(GetWorldMatrix(rotor).Up);
+		double err = angle.Dot(rotor.WorldMatrix.Up);
 
 		err *= errorScale;
+		// errStr += $"\nSETTING ROTOR TO {err:N2}";
 		rotor.TargetVelocity = (float)err;
-	}
-
-	// TODO: test this
-	public void setFromVecNew(Vector3D desiredVec) {
-		PointRotorAtVector(theBlock, desiredVec, theBlock.Top.WorldMatrix.Forward));
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
 	public void setFromVec(Vector3D desiredVec) {
+		desiredVec = Vector3D.Reject(desiredVec, wsAxis);
+		desiredVec.Normalize();
+		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
+		PointRotorAtVector(theBlock, desiredVec, currentDir);
+	}
+
+	// this sets the rotor to face the desired direction in worldspace
+	// desiredVec doesn't have to be in-line with the rotors plane of rotation
+	public void setFromVecOld(Vector3D desiredVec) {
 		desiredVec = Vector3D.Reject(desiredVec, wsAxis);
 		if(Vector3D.IsZero(desiredVec) || !desiredVec.IsValid()) {
 			errStr += $"\nERROR (setFromVec()):\n\tdesiredVec is invalid\n\t{desiredVec}";
