@@ -68,7 +68,6 @@ public Program() {
 public void Save() {}
 
 /*TODO: SYSTEM FOR COUNTERING NORMAL THRUSTERS IN GRAVITY
-
 take last update's velocity minus the current velocity times the timestep to get the acceleration then multiply by the mass of the ship ( force = mass * acceleration )
 subtract desiredvec acceleration (or better yet, keep a real running score of each thrusters acceleration)
 use this with PID to counter normal thrusters force
