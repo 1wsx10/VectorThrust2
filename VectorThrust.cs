@@ -676,8 +676,8 @@ public class Nacelle {
 			// rotor.setFromVec((controller.WorldMatrix.Down * zeroGFactor) - velocity);
 		} else {
 			rotor.getAxis();
-			// rotor.setFromVec(requiredVec);
-			rotor.setFromVecNew(requiredVec);
+			rotor.setFromVec(requiredVec);
+			// rotor.setFromVecNew(requiredVec);
 			errStr += rotor.errStr;
 			rotor.errStr = "";
 		}
@@ -897,7 +897,7 @@ public class Rotor {
 
 	public Vector3D direction = Vector3D.Zero;//offset relative to the head
 
-	public const magicRotorNumber = 5;
+	public const int magicRotorNumber = 5;
 
 	public string errStr = "";
 
