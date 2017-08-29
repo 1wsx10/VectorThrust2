@@ -958,7 +958,12 @@ public class Rotor {
 
 		err *= errorScale;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
-		rotor.TargetVelocity = (float)err;
+		if (err > maxRotorRPM)
+			rotor.TargetVelocity = (float)maxRotorRPM;
+		else if ((err*-1) > maxRotorRPM)
+			rotor.TargetVelocity = (float)(maxRotorRPM * -1);
+		else
+			rotor.TargetVelocity = (float)err;
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
