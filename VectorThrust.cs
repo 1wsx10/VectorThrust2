@@ -443,11 +443,12 @@ IMyShipController getController() {
 	}
 
 	IMyShipController cont = blocks[0];
-	int lvl = 0;
-	bool allCockpitsAreFree = true;
-	int prevLvl = 0;
+	int undercontrol = 0;
+	// bool allCockpitsAreFree = true;
+	int cockpitID = 0;
 	IMyShipController prevController = cont;
-	bool hasReverted = false;
+	// bool hasReverted = false;
+	/* not working as intended
 	for(int i = 0; i < blocks.Count; i++) {
 		// only one of them is being controlled
 		if(((IMyShipController)blocks[i]).IsUnderControl && allCockpitsAreFree) {
@@ -477,6 +478,32 @@ IMyShipController getController() {
 			cont = ((IMyShipController)blocks[i]);
 			lvl = 1;
 		}
+	}*/
+	for(int i = 0; i < blocks.Count; i++) {
+		//keep track of all the cockpits under control
+		if (((IMyShipController)blocks[i]).IsUnderControl)
+		{
+			undercontrol++;
+			cockpitID = i;
+		}
+		if (undercontrol > 1)
+			Echo("Too many pilots, select a main cockpit using the G screen!");
+
+		if(((IMyShipController)blocks[i]).GetValue<bool>("MainCockpit")) //if a main cockpit is checked, then there is no need to check for any other cockpits
+		{
+			cont = ((IMyShipController)blocks[i]);
+			break;
+		}
+	}
+	
+	if (undercontrol == 0)
+	{
+		Echo("No main cockpit and no pilot, using first cockpit found as main cockpit!");
+		cont = ((IMyShipController)blocks[0]);
+	}
+	else if (undercontrol == 1)
+	{
+		cont = ((IMyShipController)blocks[cockpitID]);
 	}
 	return cont;
 }
@@ -676,8 +703,8 @@ public class Nacelle {
 			// rotor.setFromVec((controller.WorldMatrix.Down * zeroGFactor) - velocity);
 		} else {
 			rotor.getAxis();
-			// rotor.setFromVec(requiredVec);
-			rotor.setFromVecNew(requiredVec);
+			rotor.setFromVec(requiredVec);
+			// rotor.setFromVecNew(requiredVec);
 			errStr += rotor.errStr;
 			rotor.errStr = "";
 		}
@@ -897,7 +924,7 @@ public class Rotor {
 
 	public Vector3D direction = Vector3D.Zero;//offset relative to the head
 
-	public const magicRotorNumber = 5;
+	public const int magicRotorNumber = 5;
 
 	public string errStr = "";
 
@@ -931,7 +958,12 @@ public class Rotor {
 
 		err *= errorScale;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
-		rotor.TargetVelocity = (float)err;
+		if (err > maxRotorRPM)
+			rotor.TargetVelocity = (float)maxRotorRPM;
+		else if ((err*-1) > maxRotorRPM)
+			rotor.TargetVelocity = (float)(maxRotorRPM * -1);
+		else
+			rotor.TargetVelocity = (float)err;
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
