@@ -11,7 +11,6 @@ public bool jetpack = false;
 public bool controlModule = true;
 
 public static string deBug = "";
-
 public bool standby = false;
 // this stops all calculations and everything is off in standby mode, good if you want to stop flying
 // but dont want to turn the craft off.
@@ -681,8 +680,6 @@ void displayNacelles(List<Nacelle> nacelles) {
 public class Nacelle {
 	public String errStr;
 
-
-
 	// physical parts
 	public Rotor rotor;
 	public List<Thruster> thrusters;// all the thrusters
@@ -966,7 +963,6 @@ public class Rotor {
 		this.direction = dir;
 	}
 
-
 	// gets the rotor axis (worldmatrix.up)
 	public void getAxis() {
 		this.wsAxis = theBlock.WorldMatrix.Up;//this should be normalized already
@@ -980,7 +976,6 @@ public class Rotor {
 	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection) {
 		double errorScale = Math.PI * magicRotorNumber;
 
-
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
 		double err = angle.Dot(rotor.WorldMatrix.Up);
@@ -993,9 +988,7 @@ public class Rotor {
 			rotor.TargetVelocity = (float)(maxRotorRPM * -1);
 		else
 			rotor.TargetVelocity = (float)err;
-
 	}
-
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
