@@ -53,9 +53,10 @@ public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
-//How close the roter has to be to the desired direction befor applying thrust
-//where 1 is 100% correct and 0 is 100% revers
+//How close the rotor angle must be to the desired direction before applying thrust
+//where 1 is exact and 0 means any angle
 //The larger your ship is the closer you want this to be to 1
+//Note: don’t use 1, there is a good chance your thrusters wont work at all
 public const double thrustAccuracy = 0.8;
 
 public const bool verboseCheck = true;
@@ -85,8 +86,6 @@ public long gotNacellesCount;
 public long updateNacellesCount;
 
 public void Main(string argument) {
-
-
 	writeBool = false;
 	justCompiled = false;
 
@@ -930,9 +929,9 @@ public class Thruster {
 	//using the angle between Cos and the accuracy variable determands thrust output
 	public double calcOffsetThrust(double desThrust, double offset)
 	{
-		//based on how close the roter is to the desired rotation angle will change the thrust output
+		//based on how close the rotor is to the desired rotation angle will change the thrust output
 		//Supper simple binary method, on or off
-		//TO-DO: use a perabla equation to smooth out the thrust
+		//TO-DO: use an equation to smooth out the thrust
 
 		if (offset >= thrustAccuracy)
 			return desThrust;
@@ -977,12 +976,6 @@ public class Rotor {
 		}
 	}
 
-	//get the current Vector3D of the roter
-	public Vector3D getVectorAngle()
-	{
-		return Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
-	}
-
 	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
 	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection) {
 		double errorScale = Math.PI * magicRotorNumber;
@@ -1006,20 +999,14 @@ public class Rotor {
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
+	//Returns the angleBetweenCos of the two. I know there is a better place to do this calculation
+	//but I don't know where and it took me three days just to get this to work
 	public double setFromVec(Vector3D desiredVec) {
 		desiredVec = Vector3D.Reject(desiredVec, wsAxis);
 		desiredVec.Normalize();
 		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
 		PointRotorAtVector(theBlock, desiredVec, currentDir);
 		return angleBetweenCos(currentDir, desiredVec);
-	}
-
-	public Vector3D getDesiredVec(Vector3D desiredVec)
-	{
-		Vector3D vec;
-		vec = Vector3D.Reject(desiredVec, wsAxis);
-		vec.Normalize();
-		return vec;
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
