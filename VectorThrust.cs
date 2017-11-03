@@ -10,6 +10,7 @@ public bool jetpack = false;
 
 public bool controlModule = true;
 
+public static string deBug = "";
 public bool standby = false;
 // this stops all calculations and everything is off in standby mode, good if you want to stop flying
 // but dont want to turn the craft off.
@@ -51,6 +52,11 @@ public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
+//How close the rotor angle must be to the desired direction before applying thrust
+//where 1 is exact and 0 means any angle
+//The larger your ship is the closer you want this to be to 1
+//Note: don’t use 1, there is a good chance your thrusters wont work at all
+public const double thrustAccuracy = 0.8;
 
 public const bool verboseCheck = true;
 
@@ -269,6 +275,9 @@ public void Main(string argument) {
 	write("Active Nacelles: " + nacelles.Count);//TODO: make activeNacelles account for the number of nacelles that are actually active (activeThrusters.Count > 0)
 	// write("Got Nacelles: " + gotNacellesCount);
 	// write("Update Nacelles: " + updateNacellesCount);
+	Echo(deBug);
+	write(deBug);
+	deBug = "";
 }
 
 
@@ -443,11 +452,12 @@ IMyShipController getController() {
 	}
 
 	IMyShipController cont = blocks[0];
-	int lvl = 0;
-	bool allCockpitsAreFree = true;
-	int prevLvl = 0;
+	int undercontrol = 0;
+	// bool allCockpitsAreFree = true;
+	int cockpitID = 0;
 	IMyShipController prevController = cont;
-	bool hasReverted = false;
+	// bool hasReverted = false;
+	/* not working as intended
 	for(int i = 0; i < blocks.Count; i++) {
 		// only one of them is being controlled
 		if(((IMyShipController)blocks[i]).IsUnderControl && allCockpitsAreFree) {
@@ -477,6 +487,32 @@ IMyShipController getController() {
 			cont = ((IMyShipController)blocks[i]);
 			lvl = 1;
 		}
+	}*/
+	for(int i = 0; i < blocks.Count; i++) {
+		//keep track of all the cockpits under control
+		if (((IMyShipController)blocks[i]).IsUnderControl)
+		{
+			undercontrol++;
+			cockpitID = i;
+		}
+		if (undercontrol > 1)
+			Echo("Too many pilots, select a main cockpit using the G screen!");
+
+		if(((IMyShipController)blocks[i]).GetValue<bool>("MainCockpit")) //if a main cockpit is checked, then there is no need to check for any other cockpits
+		{
+			cont = ((IMyShipController)blocks[i]);
+			break;
+		}
+	}
+
+	if (undercontrol == 0)
+	{
+		Echo("No main cockpit and no pilot, using first cockpit found as main cockpit!");
+		cont = ((IMyShipController)blocks[0]);
+	}
+	else if (undercontrol == 1)
+	{
+		cont = ((IMyShipController)blocks[cockpitID]);
 	}
 	return cont;
 }
@@ -656,6 +692,8 @@ public class Nacelle {
 	public float totalThrust = 0;
 	public int detectThrustCounter = 0;
 	public bool needsUpdate = false;
+	public Vector3D currDir = Vector3D.Zero;
+	public double angleBetween = 1;
 
 	public Nacelle() {}// don't use this if it is possible for the instance to be kept
 	public Nacelle(Rotor rotor) {
@@ -676,8 +714,8 @@ public class Nacelle {
 			// rotor.setFromVec((controller.WorldMatrix.Down * zeroGFactor) - velocity);
 		} else {
 			rotor.getAxis();
-			// rotor.setFromVec(requiredVec);
-			rotor.setFromVecNew(requiredVec);
+			angleBetween = rotor.setFromVec(requiredVec); //really need to find a way to get the angle between the desired and current vec but my Vector understanding isent that great.
+			// rotor.setFromVecNew(requiredVec);
 			errStr += rotor.errStr;
 			rotor.errStr = "";
 		}
@@ -685,10 +723,10 @@ public class Nacelle {
 		//set the thrust for each engine
 		for(int i = 0; i < activeThrusters.Count; i++) {
 			if(!jetpack) {
-				activeThrusters[i].setThrust(0);
+				activeThrusters[i].setThrust(0,1);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_Off");
 			} else {
-				activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalThrust);
+				activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalThrust, angleBetween);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_On");
 			}
 		}
@@ -859,7 +897,7 @@ public class Thruster {
 		this.theBlock = thruster;
 	}
 
-	public void setThrust(Vector3D thrustVec) {
+	public void setThrust(Vector3D thrustVec, double offset) {
 		// thrustVec is in newtons
 		// double thrust = Vector3D.Dot(thrustVec, down);
 		// convert to percentage
@@ -870,10 +908,10 @@ public class Thruster {
 		thrust = (thrust > 100 ? 100 : thrust);
 		thrust = (thrust < 0 ? 0 : thrust);
 		// Program.Clamp(thrust, 100, 0);
-		theBlock.SetValue<float>("Override", (float)thrust);// apply the thrust
+		theBlock.SetValue<float>("Override", (float)calcOffsetThrust(thrust, offset));// apply the thrust
 	}
 
-	public void setThrust(double thrust) {
+	public void setThrust(double thrust, double offset) {
 		// thrust is in newtons
 		// convert to percentage
 		thrust *= 100;
@@ -882,7 +920,16 @@ public class Thruster {
 		thrust = (thrust > 100 ? 100 : thrust);
 		thrust = (thrust < 0 ? 0 : thrust);
 		// Program.Clamp(thrust, 100, 0);
-		theBlock.SetValue<float>("Override", (float)thrust);// apply the thrust
+		theBlock.SetValue<float>("Override", (float)calcOffsetThrust(thrust, offset));// apply the thrust
+	}
+
+	//using the angle between Cos and the accuracy variable determands thrust output
+	public double calcOffsetThrust(double desThrust, double offset)
+	{
+		//based on how close the rotor is to the desired rotation angle will change the thrust output
+		//The thrusters have an accuracy of about 0.99999 so any lost thrust is minimal
+
+		return desThrust * offset;
 	}
 }
 
@@ -897,7 +944,7 @@ public class Rotor {
 
 	public Vector3D direction = Vector3D.Zero;//offset relative to the head
 
-	public const magicRotorNumber = 5;
+	public const int magicRotorNumber = 5;
 
 	public string errStr = "";
 
@@ -931,16 +978,24 @@ public class Rotor {
 
 		err *= errorScale;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
-		rotor.TargetVelocity = (float)err;
+		if (err > maxRotorRPM)
+			rotor.TargetVelocity = (float)maxRotorRPM;
+		else if ((err*-1) > maxRotorRPM)
+			rotor.TargetVelocity = (float)(maxRotorRPM * -1);
+		else
+			rotor.TargetVelocity = (float)err;
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
-	public void setFromVec(Vector3D desiredVec) {
+	//Returns the angleBetweenCos of the two. I know there is a better place to do this calculation
+	//but I don't know where and it took me three days just to get this to work
+	public double setFromVec(Vector3D desiredVec) {
 		desiredVec = Vector3D.Reject(desiredVec, wsAxis);
 		desiredVec.Normalize();
 		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
 		PointRotorAtVector(theBlock, desiredVec, currentDir);
+		return angleBetweenCos(currentDir, desiredVec);
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
