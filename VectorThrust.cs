@@ -927,13 +927,9 @@ public class Thruster {
 	public double calcOffsetThrust(double desThrust, double offset)
 	{
 		//based on how close the rotor is to the desired rotation angle will change the thrust output
-		//Supper simple binary method, on or off
-		//TO-DO: use an equation to smooth out the thrust
+		//The thrusters have an accuracy of about 0.99999 so any lost thrust is minimal
 
-		if (offset >= thrustAccuracy)
-			return desThrust;
-		else
-			return 0;
+		return desThrust * offset;
 	}
 }
 
