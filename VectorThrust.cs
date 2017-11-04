@@ -172,7 +172,7 @@ public void Main(string argument) {
 		gravLength = zeroGAcceleration;
 	}
 
-	Vector3D desiredVec = getMovement(controller.WorldMatrix, argument);
+	Vector3D desiredVec = getMovementInput(controller.WorldMatrix, argument);
 
 	//safety, dont go over max speed
 	if(shipVelocity.Length() > speedLimit) {
@@ -362,7 +362,7 @@ public Vector3D project(Vector3D a, Vector3D b) {
 }
 
 // TODO: look over this
-public Vector3D getMovement(MatrixD controllerMatrix, string arg) {
+public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 	Vector3 moveVec = Vector3.Zero;
 
 	if(controlModule) {
@@ -684,7 +684,7 @@ public class Nacelle {
 	public Rotor rotor;
 	public List<Thruster> thrusters;// all the thrusters
 	public List<Thruster> availableThrusters;// <= thrusters: the ones the user chooses to be used (ShowInTerminal)
-	public List<Thruster> activeThrusters;// <= availableThrusters: the ones that are facing the direction that produces the most thrust (only recalculated if available thrusters changes)
+	public List<Thruster> activeThrusters;// <= activeThrusters: the ones that are facing the direction that produces the most thrust (only recalculated if available thrusters changes)
 
 	public bool oldJetpack = true;
 	public Vector3D requiredVec = Vector3D.Zero;
