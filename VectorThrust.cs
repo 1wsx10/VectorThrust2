@@ -695,6 +695,23 @@ public class Nacelle {
 	public Vector3D currDir = Vector3D.Zero;
 	public double angleBetween = 1;
 
+
+
+/*
+
+TODO: calculate CoM for each nacelle... to be used for Centre_of_Thrust
+
+(thrust is applied at centre of mass because realism)
+
+IMyEntity.WorldVolume.Center
+IMyEntity.WorldMatrix.Down
+IMyThrust.MaxEffectiveThrust
+GridTerminalSystem.GetBlocksOfType(blocks, (b) => b.CubeGrid == YourGrid)
+
+
+
+*/
+
 	public Nacelle() {}// don't use this if it is possible for the instance to be kept
 	public Nacelle(Rotor rotor) {
 		this.rotor = rotor;
