@@ -709,6 +709,8 @@ IMyThrust.MaxEffectiveThrust
 GridTerminalSystem.GetBlocksOfType(blocks, (b) => b.CubeGrid == YourGrid)
 
 
+CoM_X = (m1*x1 + m2*x2)/(m1 + m2)
+where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 
 */
 
@@ -961,8 +963,6 @@ public class Rotor {
 
 	public Vector3D direction = Vector3D.Zero;//offset relative to the head
 
-	public const int magicRotorNumber = 5;
-
 	public string errStr = "";
 
 	public Rotor(IMyMotorStator rotor) {
@@ -987,7 +987,7 @@ public class Rotor {
 
 	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
 	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection) {
-		double errorScale = Math.PI * magicRotorNumber;
+		double errorScale = Math.PI * maxRotorRPM;
 
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
@@ -996,11 +996,11 @@ public class Rotor {
 		err *= errorScale;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
 		if (err > maxRotorRPM)
-			rotor.TargetVelocity = (float)maxRotorRPM;
+			rotor.TargetVelocityRPM = (float)maxRotorRPM;
 		else if ((err*-1) > maxRotorRPM)
-			rotor.TargetVelocity = (float)(maxRotorRPM * -1);
+			rotor.TargetVelocityRPM = (float)(maxRotorRPM * -1);
 		else
-			rotor.TargetVelocity = (float)err;
+			rotor.TargetVelocityRPM = (float)err;
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
