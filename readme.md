@@ -1,9 +1,34 @@
-1. put %VectorTim in the name of the timer block and only put its actions as run the computer with default argument.
-2. place the engines while the script is running.
-2.5 use the %standby argument to turn the script off (there is no control module hotkey for it yet)
-3. no need to do grouping or angles in the name, the script works that out automatically
-4. i recommend using control module (see v1 instructions)
-5. i recommend using the monitor functionality (see v1 instructions)
+
+1. put %VectorTim in the name of a timer block and set it to run the programmable block with default argument
+2. paste the contents of VectorThrust.cs into the programmable block, then click 'check code' and 'save & exit'
+3. run the programmable block
+4. put thrusters on rotors
+5. setup your buttons.. either use 'Control Module' by DIGI or make your cockpit buttons with various actions
+6. get in and hit the jetpack button!
 
 
-Instructions for v1: http://steamcommunity.com/sharedfiles/filedetails/?id=709591589
+VANILLA BUTTONS SETUP:
+1. get in your cockpit, press G
+2. drag the programmable block to the bar and select "RUN"
+3. copy&paste the code for your controls. you will need:
+%dampeners
+%jetpack
+%standby			this completely stops the script, till you press the button again (and also safely turns off thrusters & rotors)
+%raiseAccel
+%lowerAccel
+%resetAccel
+the last 3 control your "Target Accel" value and are optional
+
+CONTROL MODULE SETUP:
+make sure the mod is installed: just subscribe then add it to the mod list in world options
+this will add settings to the programmable block. set these:
+1. Monitored inputs: read all inputs
+2. Trigger on state: pressed and released
+3. Repeat interval: 0.016 (you can type it by ctrl+click the slider bar)
+
+this sets the following buttons:
+suit jetpack key: engines on/off
+inertia dampeners key: inertia dampenerse on/off
++:	increase target acceleration
+-:	decrease target acceleration
+0:	reset target acceleration
