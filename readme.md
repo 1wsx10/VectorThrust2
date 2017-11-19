@@ -32,3 +32,10 @@ inertia dampeners key: inertia dampenerse on/off
 +:	increase target acceleration
 -:	decrease target acceleration
 0:	reset target acceleration
+
+
+
+INFO PANEL SETUP:
+1. place a text panel
+2. put %VectorLCD in the name
+3. set it to show text on screen
