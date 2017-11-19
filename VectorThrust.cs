@@ -1,4 +1,4 @@
-public float speedLimit = 90;//speed limit of your game
+public float speedLimit = 90000;//speed limit of your game
 //this is because you cant disable rotor safety lock
 //the best you can do is set the safety lock as max speed of the game.
 //default is 100m/s i recommend subtract 10 and set it as that.
@@ -52,11 +52,34 @@ public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
-//How close the rotor angle must be to the desired direction before applying thrust
-//where 1 is exact and 0 means any angle
-//The larger your ship is the closer you want this to be to 1
-//Note: don’t use 1, there is a good chance your thrusters wont work at all
-public const double thrustAccuracy = 0.8;
+
+
+
+
+
+
+
+//                              V 180 degrees
+//              V 0 degrees                      V 360 degrees
+// 				|-----\                    /------
+// desired power|----------------------------------------- value of 0.1
+// 				|      \                 /
+// 				|       \               /
+// 				|        \             /
+// no power 	|-----------------------------------------
+//
+//
+// 				|-----\                    /------stuff above desired power gets set to desired power
+// 				|      \                  /
+// 				|       \                /
+// desired power|----------------------------------------- value of 0.8
+// 				|         \            /
+// no power 	|-----------------------------------------
+
+// the clipping value 'thrustModifier' defines how far the thruster can be away from the desired direction of thrust, and have the power still at desired power, otherwise it will be less
+// if 'thrustModifier' is at 1, the thruster will be at desired power when it is at 90 degrees from the direction of travel
+// if 'thrustModifier' is at 0, the thruster will always be slightly less than the desired power due to inaccuracies in the system
+public const double thrustModifier = 0.1;
 
 public const bool verboseCheck = true;
 
@@ -89,22 +112,22 @@ public void Main(string argument) {
 	justCompiled = false;
 
 	Echo("Running "+ programCounter++);
-	String a = "";
+	String spinner = "";
 	switch(programCounter/10%4) {
 		case 0:
-			a = "|";
+			spinner = "|";
 		break;
 		case 1:
-			a = "\\";
+			spinner = "\\";
 		break;
 		case 2:
-			a = "-";
+			spinner = "-";
 		break;
 		case 3:
-			a = "/";
+			spinner = "/";
 		break;
 	}
-	write(a);
+	write(spinner);
 
 	Echo("Starting Main");
 	argument = argument.ToLower();
@@ -203,6 +226,8 @@ public void Main(string argument) {
 	// point thrust in opposite direction, add weight. this is force, not acceleration
 	Vector3D requiredVec = -desiredVec + shipWeight;
 
+	Echo("Required Force: " + $"{Math.Round(requiredVec.Length(),0)}" + "N");
+
 
 	// update thrusters on/off and re-check nacelles direction
 	foreach(Nacelle n in nacelles) {
@@ -255,19 +280,21 @@ public void Main(string argument) {
 		g[0].requiredVec += asdf;
 	}
 	// apply first nacelle settings to rest in each group
+	double total = 0;
 	foreach(List<Nacelle> g in nacelleGroups) {
 		Vector3D req = g[0].requiredVec / g.Count;
 		for(int i = 0; i < g.Count; i++) {
 			g[i].requiredVec = req;
 			g[i].go(jetpack);
+			total += req.Length();
 			// write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
-			Echo(g[i].errStr);
+			// write(g[i].errStr);
 			// foreach(Thruster t in g[i].activeThrusters) {
 			// 	// Echo($"Thruster: {t.theBlock.CustomName}\n{t.errStr}");
 			// }
 		}
 	}/* end of TODO */
-
+	Echo("Total Force: " + $"{Math.Round(total,0)}" + "N");
 
 	write("Target Accel: " + Math.Round(getAcceleration(gravLength)/gravLength, 2) + "g");
 	write("Thrusters: " + jetpack);
@@ -677,6 +704,21 @@ void displayNacelles(List<Nacelle> nacelles) {
 	}
 }
 
+public static string progressBar(double val) {
+	char[] bar = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+	for(int i = 0; i < 10; i++) {
+		if(i <= val * 10) {
+			bar[i] = '|';
+		}
+	}
+	var str_build = new StringBuilder("[");
+	for(int i = 0; i < 10; i++) {
+		str_build.Append(bar[i]);
+	}
+	str_build.Append("]");
+	return str_build.ToString();
+}
+
 public class Nacelle {
 	public String errStr;
 
@@ -689,11 +731,10 @@ public class Nacelle {
 	public bool oldJetpack = true;
 	public Vector3D requiredVec = Vector3D.Zero;
 
-	public float totalThrust = 0;
+	public float totalEffectiveThrust = 0;
 	public int detectThrustCounter = 0;
 	public bool needsUpdate = false;
 	public Vector3D currDir = Vector3D.Zero;
-	public double angleBetween = 1;
 
 
 
@@ -728,12 +769,12 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		errStr = "";
 		// errStr += $"\nactive thrusters: {activeThrusters.Count}";
 		// errStr += $"\nall thrusters: {thrusters.Count}";
-		totalThrust = (float)calcTotalThrust(activeThrusters);
+		totalEffectiveThrust = (float)calcTotalEffectiveThrust(activeThrusters);
 		if(false/*zeroG*/ /*&& requiredVec.Length() < zeroGFactor*/) {
 			// rotor.setFromVec((controller.WorldMatrix.Down * zeroGFactor) - velocity);
 		} else {
 			rotor.getAxis();
-			angleBetween = rotor.setFromVec(requiredVec); //really need to find a way to get the angle between the desired and current vec but my Vector understanding isent that great.
+			rotor.setFromVec(requiredVec);
 			// rotor.setFromVecNew(requiredVec);
 			errStr += rotor.errStr;
 			rotor.errStr = "";
@@ -741,18 +782,20 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 
 		//set the thrust for each engine
 		for(int i = 0; i < activeThrusters.Count; i++) {
+			errStr += activeThrusters[i].errStr;
+			activeThrusters[i].errStr = "";
 			if(!jetpack) {
-				activeThrusters[i].setThrust(0,1);
+				activeThrusters[i].setThrust(0);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_Off");
 			} else {
-				activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalThrust, angleBetween);
+				activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalEffectiveThrust);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_On");
 			}
 		}
 		oldJetpack = jetpack;
 	}
 
-	public float calcTotalThrust(List<Thruster> thrusters) {
+	public float calcTotalEffectiveThrust(List<Thruster> thrusters) {
 		float total = 0;
 		foreach(Thruster t in thrusters) {
 			total += t.theBlock.MaxEffectiveThrust;
@@ -911,44 +954,47 @@ public class Thruster {
 
 	// stays the same when in standby, if not in standby, this gets updated to weather or not the thruster is on
 	public bool isOn = true;
+	public string errStr = "";
 
 	public Thruster(IMyThrust thruster) {
 		this.theBlock = thruster;
 	}
 
-	public void setThrust(Vector3D thrustVec, double offset) {
-		// thrustVec is in newtons
-		// double thrust = Vector3D.Dot(thrustVec, down);
-		// convert to percentage
-		double thrust = thrustVec.Length();
-		thrust *= 100;
-		thrust /= theBlock.MaxEffectiveThrust;
+	// sets the thrust in newtons (N)
+	// thrustVec is in worldspace, who'se length is the desired thrust
+	// if thrustVec is not in-line with the thrusters direction of thrust, the value will be modified such that it is less
+	// the clipping value 'thrustModifier' defines how far thrustVec can be away from the direction of thrust, and have the power still at max
+	// if 'thrustModifier' is at 1, the thruster will be at full power when it is at 90 degrees from the direction of travel
+	public void setThrust(Vector3D thrustVec) {
+		Vector3D forward = theBlock.GridThrustDirection;
+		var blockMatrix = theBlock.WorldMatrix;
+		Vector3D thrustVecLocal = Vector3D.TransformNormal(thrustVec, MatrixD.Invert(blockMatrix));
 
-		thrust = (thrust > 100 ? 100 : thrust);
-		thrust = (thrust < 0 ? 0 : thrust);
-		// Program.Clamp(thrust, 100, 0);
-		theBlock.SetValue<float>("Override", (float)calcOffsetThrust(thrust, offset));// apply the thrust
+		double dot = Vector3D.Dot(thrustVecLocal, forward * -1);
+		double Length = thrustVecLocal.Length() /* * forward.Length()*/;// forward.Length() is always 1, so no need to calculate it
+		double thrustOffset = (dot/Length + 1) / (1 + (1 - Program.thrustModifier));//put it in some graphing calculator software where 'dot/Length' is cos(x) and adjust the thrustModifier value between 0 and 1, then you can visualise it
+		if(thrustOffset > 1) {
+			thrustOffset = 1;
+		}
+		// errStr += Program.progressBar(thrustOffset);
+
+		double thrust = thrustVec.Length() * thrustOffset;
+		if(thrust > theBlock.MaxThrust) {
+			thrust = theBlock.MaxThrust;
+		} else if(thrust < 0) {
+			thrust = 0;
+		}
+		theBlock.ThrustOverride = (float)(thrust * theBlock.MaxThrust / theBlock.MaxEffectiveThrust);
 	}
 
-	public void setThrust(double thrust, double offset) {
-		// thrust is in newtons
-		// convert to percentage
-		thrust *= 100;
-		thrust /= theBlock.MaxEffectiveThrust;
-
-		thrust = (thrust > 100 ? 100 : thrust);
-		thrust = (thrust < 0 ? 0 : thrust);
-		// Program.Clamp(thrust, 100, 0);
-		theBlock.SetValue<float>("Override", (float)calcOffsetThrust(thrust, offset));// apply the thrust
-	}
-
-	//using the angle between Cos and the accuracy variable determands thrust output
-	public double calcOffsetThrust(double desThrust, double offset)
-	{
-		//based on how close the rotor is to the desired rotation angle will change the thrust output
-		//The thrusters have an accuracy of about 0.99999 so any lost thrust is minimal
-
-		return desThrust * offset;
+	// sets the thrust in newtons (N)
+	public void setThrust(double thrust) {
+		if(thrust > theBlock.MaxThrust) {
+			thrust = theBlock.MaxThrust;
+		} else if(thrust < 0) {
+			thrust = 0;
+		}
+		theBlock.ThrustOverride = (float)(thrust * theBlock.MaxThrust / theBlock.MaxEffectiveThrust);
 	}
 }
 
@@ -995,24 +1041,22 @@ public class Rotor {
 
 		err *= errorScale;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
-		if (err > maxRotorRPM)
+		if (err > maxRotorRPM) {
 			rotor.TargetVelocityRPM = (float)maxRotorRPM;
-		else if ((err*-1) > maxRotorRPM)
+		} else if ((err*-1) > maxRotorRPM) {
 			rotor.TargetVelocityRPM = (float)(maxRotorRPM * -1);
-		else
+		} else {
 			rotor.TargetVelocityRPM = (float)err;
+		}
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
-	//Returns the angleBetweenCos of the two. I know there is a better place to do this calculation
-	//but I don't know where and it took me three days just to get this to work
-	public double setFromVec(Vector3D desiredVec) {
+	public void setFromVec(Vector3D desiredVec) {
 		desiredVec = Vector3D.Reject(desiredVec, wsAxis);
 		desiredVec.Normalize();
 		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
 		PointRotorAtVector(theBlock, desiredVec, currentDir);
-		return angleBetweenCos(currentDir, desiredVec);
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
