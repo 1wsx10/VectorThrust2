@@ -142,6 +142,7 @@ public void Main(string argument) {
 				t.theBlock.ApplyAction("OnOff_Off");
 			}
 		}
+		Runtime.UpdateFrequency = UpdateFrequency.None;
 	// coming back from standby mode
 	} else if(togglePower && standby) {
 		standby = false;
@@ -153,9 +154,10 @@ public void Main(string argument) {
 				}
 			}
 		}
+		Runtime.UpdateFrequency = UpdateFrequency.Update1;
 	}
 
-	if(argument.Contains(resetArg.ToLower()) || controller == null || timer == null || justCompiled) {
+	if(argument.Contains(resetArg.ToLower()) || controller == null /*|| timer == null*/ || justCompiled) {
 		if(!init()) {
 			return;
 		}
@@ -172,8 +174,8 @@ public void Main(string argument) {
 		write("Standing By");
 		return;
 	} else {
-		timer.Trigger();
-		timer.StartCountdown();
+		// timer.Trigger();
+		// timer.StartCountdown();
 		// write($"dampers={dampeners}");
 	}
 
@@ -328,7 +330,7 @@ public bool updateNacelles = false;
 public bool justCompiled = true;
 
 
-
+// TODO: remove this
 public IMyTimerBlock getTimer() {
 	List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyTimerBlock>(blocks);
@@ -585,7 +587,7 @@ public bool init() {
 			return false;
 		}
 	}
-	if(timer == null) {
+	if(false && timer == null) {
 		timer = getTimer();
 		if(timer == null) {
 			return false;
