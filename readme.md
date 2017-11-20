@@ -1,6 +1,6 @@
 # Vector Thrust
 ### put your thrusters on rotors!
----
+
 ## MAIN SETUP
 1. paste the contents of VectorThrust.cs into the programmable block, then click 'check code' and 'save & exit'
 2. ~~run the programmable block~~ it should be already running
@@ -40,7 +40,8 @@ this sets the following buttons:
 
 there is currently no binding for standby, so you will have to set that up with the vanilla method
 
-## INFO PANEL SETUP:
+## INFO PANEL SETUP
+#### while this is optional, i highly recommend it
 1. place a text panel
 2. put %VectorLCD in the name
 3. set it to show text on screen
