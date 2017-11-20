@@ -93,6 +93,7 @@ public Program() {
 	programCounter = 0;
 	gotNacellesCount = 0;
 	updateNacellesCount = 0;
+	Runtime.UpdateFrequency = UpdateFrequency.Update1;
 }
 public void Save() {}
 
@@ -109,7 +110,6 @@ public long updateNacellesCount;
 
 public void Main(string argument) {
 	writeBool = false;
-	justCompiled = false;
 
 	Echo("Running "+ programCounter++);
 	String spinner = "";
@@ -178,6 +178,23 @@ public void Main(string argument) {
 		// timer.StartCountdown();
 		// write($"dampers={dampeners}");
 	}
+
+	if(justCompiled) {
+		foreach(Nacelle n in nacelles) {
+			n.rotor.theBlock.ApplyAction("OnOff_On");
+			foreach(Thruster t in n.thrusters) {
+				if(t.isOn) {
+					t.theBlock.ApplyAction("OnOff_On");
+				}
+			}
+		}
+	}
+	justCompiled = false;
+
+
+
+
+
 
  	// get gravity in world space
 	Vector3D worldGrav = controller.GetNaturalGravity();
@@ -587,7 +604,7 @@ public bool init() {
 			return false;
 		}
 	}
-	if(false && timer == null) {
+	if(false && timer == null) {//TODO: remove this
 		timer = getTimer();
 		if(timer == null) {
 			return false;
