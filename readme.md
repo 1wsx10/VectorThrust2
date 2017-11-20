@@ -11,12 +11,14 @@
 1. get in your cockpit, press G
 2. drag the programmable block to the bar and select "RUN"
 3. copy&paste the code for your controls. you will need:
-%dampeners
-%jetpack
-%standby	this completely stops the script, till you press the button again (and also safely turns off thrusters & rotors) **please use it in multiplayer**
-%raiseAccel
-%lowerAccel
-%resetAccel
+* %dampeners
+* %jetpack
+* %standby
+..* this completely stops the script, till you press the button again (and also safely turns off thrusters & rotors) **please use it in multiplayer**
+* %raiseAccel
+* %lowerAccel
+* %resetAccel
+
 the last 3 control your "Target Accel" value and are optional
 
 ## CONTROL MODULE SETUP
