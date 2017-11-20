@@ -13,7 +13,7 @@
 3. copy&paste the code for your controls. you will need:
 %dampeners
 %jetpack
-%standby			this completely stops the script, till you press the button again (and also safely turns off thrusters & rotors)
+%standby	this completely stops the script, till you press the button again (and also safely turns off thrusters & rotors) **please use it in multiplayer**
 %raiseAccel
 %lowerAccel
 %resetAccel
@@ -21,17 +21,21 @@ the last 3 control your "Target Accel" value and are optional
 
 ## CONTROL MODULE SETUP
 make sure the mod is installed: just subscribe then add it to the mod list in world options
+
 this will add settings to the programmable block. set these:
 1. Monitored inputs: read all inputs
 2. Trigger on state: pressed and released
 3. Repeat interval: 0.016 (you can type it by ctrl+click the slider bar)
 
 this sets the following buttons:
-suit jetpack key: engines on/off
-inertia dampeners key: inertia dampenerse on/off
-+:	increase target acceleration
--:	decrease target acceleration
-0:	reset target acceleration
+
+* __suit jetpack key__:		engines on/off
+* __inertia dampeners key__:	inertia dampenerse on/off
+* __+__:			_increase target acceleration_
+* __-__:			_decrease target acceleration_
+* __0__:			_reset target acceleration_
+
+there is currently no binding for standby, so you will have to set that up with the vanilla method
 
 ## INFO PANEL SETUP:
 1. place a text panel
