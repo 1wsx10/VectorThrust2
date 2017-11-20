@@ -1,10 +1,9 @@
 
-1. put %VectorTim in the name of a timer block and set it to run the programmable block with default argument
-2. paste the contents of VectorThrust.cs into the programmable block, then click 'check code' and 'save & exit'
-3. run the programmable block
-4. put thrusters on rotors
-5. setup your buttons.. either use 'Control Module' by DIGI or make your cockpit buttons with various actions
-6. get in and hit the jetpack button!
+1. paste the contents of VectorThrust.cs into the programmable block, then click 'check code' and 'save & exit'
+2. run the programmable block
+3. put thrusters on rotors
+4. setup your buttons.. either use 'Control Module' by DIGI or make your cockpit buttons with various actions
+5. get in and hit the jetpack button!
 
 
 VANILLA BUTTONS SETUP:
@@ -18,6 +17,7 @@ VANILLA BUTTONS SETUP:
 %lowerAccel
 %resetAccel
 the last 3 control your "Target Accel" value and are optional
+
 
 CONTROL MODULE SETUP:
 make sure the mod is installed: just subscribe then add it to the mod list in world options
