@@ -368,32 +368,43 @@ public IMyTimerBlock getTimer() {
 	}
 }
 
-public void write(string str) {
+public bool isAlive(IMyTerminalBlock block) {
+	return block.CubeGrid.GetCubeBlock(block.Position)?.FatBlock == block;
+}
+
+public bool write(string str) {
 	str += "\n";
-	try {
+	if(screen != null) {
+		if(!isAlive(screen)) {
+			screen = null;
+			return write(str);//tail call, no effect on performance
+		}
 		screen.WritePublicText(str, writeBool);
+		screen.ShowPublicTextOnScreen();
 		writeBool = true;
-	} catch(Exception e) {
+	} else {
 		var blocks = new List<IMyTerminalBlock>();
 		GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(blocks);
 		if(blocks.Count == 0) {
 			Echo("No screens available");
-			return;
+			return false;
 		}
-		screen = (IMyTextPanel)blocks[0];
+		var temp = (IMyTextPanel)blocks[0];
 		bool found = false;
 		for(int i = 0; i < blocks.Count; i++) {
 			if(blocks[i].CustomName.IndexOf(LCDName) != -1) {
-				screen = (IMyTextPanel)blocks[i];
+				temp = (IMyTextPanel)blocks[i];
 				found = true;
 			}
 		}
 		if(!found) {
 			Echo("No screen to write text on");
-			return;
+			return false;
 		}
+		screen = temp;
 		screen.WritePublicText(str);
 	}
+	return true;
 }
 
 double getAcceleration(double gravity) {
