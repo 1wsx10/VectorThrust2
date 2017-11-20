@@ -1,9 +1,3 @@
-public float speedLimit = 90000;//speed limit of your game
-//this is because you cant disable rotor safety lock
-//the best you can do is set the safety lock as max speed of the game.
-//default is 100m/s i recommend subtract 10 and set it as that.
-//make sure all your rotors safety lock is at max speed
-
 // weather or not dampeners or thrusters are on when you start the script
 public bool dampeners = true;
 public bool jetpack = false;
@@ -217,9 +211,9 @@ public void Main(string argument) {
 	Vector3D desiredVec = getMovementInput(controller.WorldMatrix, argument);
 
 	//safety, dont go over max speed
-	if(shipVelocity.Length() > speedLimit) {
+	/*if(shipVelocity.Length() > speedLimit) {
 		desiredVec -= shipVelocity;
-	}
+	}*/
 
 	if(dampeners) {
 		Vector3D dampVec = Vector3D.Zero;
@@ -347,6 +341,14 @@ public bool updateNacelles = false;
 public bool justCompiled = true;
 
 
+// DEPRECATED
+//public float speedLimit = 90000;//speed limit of your game
+//this is because you cant disable rotor safety lock
+//the best you can do is set the safety lock as max speed of the game.
+//default is 100m/s i recommend subtract 10 and set it as that.
+//make sure all your rotors safety lock is at max speed
+
+// DEPRECATED
 // TODO: remove this
 public IMyTimerBlock getTimer() {
 	List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
@@ -734,7 +736,7 @@ void displayNacelles(List<Nacelle> nacelles) {
 	}
 }
 
-public static string progressBar(double val) {
+public string progressBar(double val) {
 	char[] bar = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 	for(int i = 0; i < 10; i++) {
 		if(i <= val * 10) {
@@ -1003,8 +1005,10 @@ public class Thruster {
 		double dot = Vector3D.Dot(thrustVecLocal, forward * -1);
 		double Length = thrustVecLocal.Length() /* * forward.Length()*/;// forward.Length() is always 1, so no need to calculate it
 		double thrustOffset = (dot/Length + 1) / (1 + (1 - Program.thrustModifier));//put it in some graphing calculator software where 'dot/Length' is cos(x) and adjust the thrustModifier value between 0 and 1, then you can visualise it
-		errStr += Program.progressBar(thrustOffset);
-
+		// errStr += progressBar(thrustOffset);
+		if(false) {
+			return;//TODO: reminder to fix the following:
+		}
 		double thrust = thrustVec.Length()/* * thrustOffset*/;//TODO: correct for the rotor being out of alignment then re-enable this
 		if(thrust > theBlock.MaxThrust) {
 			thrust = theBlock.MaxThrust;
@@ -1022,6 +1026,21 @@ public class Thruster {
 			thrust = 0;
 		}
 		theBlock.ThrustOverride = (float)(thrust * theBlock.MaxThrust / theBlock.MaxEffectiveThrust);
+	}
+
+	public string progressBar(double val) {
+		char[] bar = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+		for(int i = 0; i < 10; i++) {
+			if(i <= val * 10) {
+				bar[i] = '|';
+			}
+		}
+		var str_build = new StringBuilder("[");
+		for(int i = 0; i < 10; i++) {
+			str_build.Append(bar[i]);
+		}
+		str_build.Append("]");
+		return str_build.ToString();
 	}
 }
 
