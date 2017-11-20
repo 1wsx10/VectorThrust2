@@ -1,6 +1,6 @@
 # Vector Thrust
 ### put your thrusters on rotors!
-
+---
 ## MAIN SETUP
 1. paste the contents of VectorThrust.cs into the programmable block, then click 'check code' and 'save & exit'
 2. ~~run the programmable block~~ it should be already running
@@ -14,7 +14,8 @@
 * %dampeners
 * %jetpack
 * %standby
-    this completely stops the script, till you press the button again (and also safely turns off thrusters & rotors) **please use it in multiplayer**
+   
+   this completely stops the script, till you press the button again (and also safely turns off thrusters & rotors) **please use it in multiplayer**
 * %raiseAccel
 * %lowerAccel
 * %resetAccel
