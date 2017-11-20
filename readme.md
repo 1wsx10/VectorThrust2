@@ -3,10 +3,9 @@
 
 ## MAIN SETUP
 1. paste the contents of VectorThrust.cs into the programmable block, then click 'check code' and 'save & exit'
-2. run the programmable block
-~~3. run the programmable block~~ it should be already running
-4. setup your buttons.. either use 'Control Module' by DIGI or make your cockpit buttons with various actions
-5. get in and hit the jetpack button!
+2. ~~run the programmable block~~ it should be already running
+3. setup your buttons.. either use 'Control Module' by DIGI or make your cockpit buttons with various actions
+4. get in and hit the jetpack button!
 
 ## VANILLA BUTTONS SETUP
 1. get in your cockpit, press G
