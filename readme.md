@@ -44,4 +44,3 @@ there is currently no binding for standby, so you will have to set that up with 
 #### while this is optional, i highly recommend it
 1. place a text panel
 2. put %VectorLCD in the name
-3. set it to show text on screen
