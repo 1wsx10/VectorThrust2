@@ -44,3 +44,11 @@ there is currently no binding for standby, so you will have to set that up with 
 #### while this is optional, i highly recommend it
 1. place a text panel
 2. put %VectorLCD in the name
+
+## BUGS
+unfortunately there seems to be a physics bug in space engineers at the moment which causes thrusters on rotors to spaz out in some situations. i have reproduced it on a ship without the script whatsoever, so its not my script doing it
+
+### workaround
+so far, i have narrowed it down to the thrusters being in-line with the centre of mass... that's pretty ironic because this update is supposed to remove that requirement.
+
+just try to keep the rotors in-line with the centre of mass and it should be fine
