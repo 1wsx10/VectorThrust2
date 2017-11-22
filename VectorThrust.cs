@@ -302,6 +302,7 @@ public void Main(string argument) {
 		Vector3D req = g[0].requiredVec / g.Count;
 		for(int i = 0; i < g.Count; i++) {
 			g[i].requiredVec = req;
+			// Echo(g[i].errStr);
 			g[i].go(jetpack);
 			total += req.Length();
 			// write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
@@ -860,8 +861,10 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 	//true if all thrusters are good
 	public bool validateThrusters(bool jetpack) {
 		bool needsUpdate = false;
+		errStr += "validating thrusters: (jetpack {jetpack})\n";
 		foreach(Thruster t in thrusters) {
 			if(availableThrusters.Contains(t)) {//is available
+				errStr += "in available thrusters\n";
 				if(!(t.theBlock.ShowInTerminal && t.theBlock.IsFunctional) //not (shown and functional)
 					|| (t.isOn && !t.theBlock.GetValue<bool>("OnOff") //or (was on and is now off)
 					&& (jetpack && oldJetpack))) {//if jetpack is on, the thruster has been turned off
@@ -872,7 +875,11 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 					needsUpdate = true;
 				}
 			} else {//not available
-				if(t.theBlock.ShowInTerminal && t.theBlock.IsWorking) { //(shown and functional)
+				errStr += "not in available thrusters\n";
+				errStr += $"ShowInTerminal {t.theBlock.ShowInTerminal}\n";
+				errStr += $"IsWorking {t.theBlock.IsWorking}\n";
+				errStr += $"IsFunctional {t.theBlock.IsFunctional}\n";
+				if(t.theBlock.ShowInTerminal && t.theBlock.IsFunctional) { //(shown and functional)
 					availableThrusters.Add(t);
 					needsUpdate = true;
 					t.isOn = true;
@@ -1093,7 +1100,7 @@ public class Rotor {
 	// gets the rotor axis (worldmatrix.up)
 	public void getAxis() {
 		this.wsAxis = theBlock.WorldMatrix.Up;//this should be normalized already
-		if(Math.Round(this.wsAxis.Length(), 6) != 1.000000) {
+		if(Math.Round(this.wsAxis.LengthSquared(), 2) != 1.00) {
 			errStr += $"\nERROR (getAxis()):\n\trotor up isn't normalized\n\t{Math.Round(this.wsAxis.Length(), 2)}";
 			this.wsAxis.Normalize();
 		}
