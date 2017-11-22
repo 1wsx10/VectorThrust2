@@ -24,9 +24,11 @@ public const float accelBase = 1.5f;//accel = defaultAccel * g * base^exponent
 public const float dampenersModifier = 0.1f;
 
 // choose weather you want the script to update once every frame, once every 10 frames, or once every 100 frames
-public const bool update100 = false;
-public const bool update10 = false;
-public const bool update1 = true;
+// should be 1 of:
+// UpdateFrequency.Update1
+// UpdateFrequency.Update10
+// UpdateFrequency.Update100
+public const UpdateFrequency update_frequency = UpdateFrequency.Update1;
 
 public const string LCDName = "%VectorLCD";
 
@@ -50,6 +52,11 @@ public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
+
+// default acceleration in situations with 0 (or low) gravity
+public const float zeroGAcceleration = 9.81f;
+// if gravity becomes less than this, zeroGAcceleration will kick in
+public const float gravCutoff = 0.1f * 9.81f;
 
 
 
@@ -79,28 +86,14 @@ public const float maxRotorRPM = 60;
 // if 'thrustModifier' is at 0, the thruster will always be slightly less than the desired power due to inaccuracies in the system
 public const double thrustModifier = 0.1;
 
+// debugging prints
 public const bool verboseCheck = true;
-
-/////////////////////////////////////////////
-public const float zeroGAcceleration = 9.81f;// acceleration in situations with 0 (or low) gravity
-public const float gravCutoff = 0.1f * 9.81f;// if gravity becomes less than this, zeroGAcceleration will kick in
-/////////////////////////////////////////////
 
 public Program() {
 	Echo("Just Compiled");
 	programCounter = 0;
 	gotNacellesCount = 0;
 	updateNacellesCount = 0;
-	var update_frequency = UpdateFrequency.None;
-	if(update100) {
-		update_frequency |= UpdateFrequency.Update100;
-	}
-	if(update10) {
-		update_frequency |= UpdateFrequency.Update10;
-	}
-	if(update1) {
-		update_frequency |= UpdateFrequency.Update1;
-	}
 	Runtime.UpdateFrequency = update_frequency;
 }
 public void Save() {}
@@ -219,7 +212,7 @@ public void Main(string argument) {
 
 	// get velocity
 	MyShipVelocities shipVelocities = controller.GetShipVelocities();
-	Vector3D shipVelocity = shipVelocities.LinearVelocity;
+	shipVelocity = shipVelocities.LinearVelocity;
 	// Vector3D shipAngularVelocity = shipVelocities.AngularVelocity;
 
 	// setup mass
@@ -234,7 +227,7 @@ public void Main(string argument) {
 
 	Vector3D desiredVec = getMovementInput(controller.WorldMatrix, argument);
 
-	//safety, dont go over max speed
+	//safety, dont go over max speed DEPRECATED (SE no longer has safety-lock so this is no longer needed)
 	/*if(shipVelocity.Length() > speedLimit) {
 		desiredVec -= shipVelocity;
 	}*/
@@ -378,8 +371,11 @@ public int rotorCount = 0;
 public int rotorTopCount = 0;
 public int thrusterCount = 0;
 public bool updateNacelles = false;
+public Vector3D shipVelocity = Vector3D.Zero;
 
 public bool justCompiled = true;
+
+
 
 
 
@@ -751,7 +747,7 @@ List<Nacelle> getNacelles() {
 		// it's not set to not be a nacelle rotor
 		// it's topgrid is not the programmable blocks grid
 		Rotor rotor = new Rotor(current);
-		nacelles.Add(new Nacelle(rotor));
+		nacelles.Add(new Nacelle(rotor, this));
 	}
 
 	echoV("Getting Thrusters", verboseCheck);
@@ -814,6 +810,7 @@ public string progressBar(double val) {
 
 public class Nacelle {
 	public String errStr;
+	public Program program;
 
 	// physical parts
 	public Rotor rotor;
@@ -849,7 +846,8 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 */
 
 	public Nacelle() {}// don't use this if it is possible for the instance to be kept
-	public Nacelle(Rotor rotor) {
+	public Nacelle(Rotor rotor, Program program) {
+		this.program = program;
 		this.rotor = rotor;
 		this.thrusters = new List<Thruster>();
 		this.availableThrusters = new List<Thruster>();
@@ -863,15 +861,25 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		// errStr += $"\nactive thrusters: {activeThrusters.Count}";
 		// errStr += $"\nall thrusters: {thrusters.Count}";
 		totalEffectiveThrust = (float)calcTotalEffectiveThrust(activeThrusters);
-		if(false/*zeroG*/ /*&& requiredVec.Length() < zeroGFactor*/) {
-			// rotor.setFromVec((controller.WorldMatrix.Down * zeroGFactor) - velocity);
-		} else {
-			rotor.getAxis();
+
+		rotor.getAxis();
+
+
+		// maybe lerp this in the future
+		if(requiredVec.LengthSquared() < gravCutoff*gravCutoff) {// Zero G
+			Vector3D direction = (program.controller.WorldMatrix.Down + program.controller.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+			if(program.shipVelocity.LengthSquared() > direction.LengthSquared()) {
+				rotor.setFromVec(requiredVec - program.shipVelocity);
+			} else {
+				rotor.setFromVec(direction + requiredVec);
+			}
+			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
+		} else {// In Gravity
 			rotor.setFromVec(requiredVec);
 			// rotor.setFromVecOld(requiredVec);
-			errStr += rotor.errStr;
-			rotor.errStr = "";
 		}
+		errStr += rotor.errStr;
+		rotor.errStr = "";
 
 		//set the thrust for each engine
 		for(int i = 0; i < activeThrusters.Count; i++) {
