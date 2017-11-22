@@ -432,6 +432,7 @@ public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 			Me.SetValue<string>("ControlModule.AddInput", "all");
 			Me.SetValue<bool>("ControlModule.RunOnInput", false);
 			Me.SetValue<int>("ControlModule.InputState", 1);
+			Me.SetValue<float>("ControlModule.RepeatDelay", 0.016f);
 		} catch(Exception e) {
 			controlModule = false;
 		}
