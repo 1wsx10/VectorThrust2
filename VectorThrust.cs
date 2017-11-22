@@ -117,6 +117,7 @@ public long gotNacellesCount;
 public long updateNacellesCount;
 
 public void Main(string argument) {
+	// ========== STARTUP ==========
 	writeBool = false;
 
 	Echo("Running "+ programCounter++);
@@ -200,10 +201,18 @@ public void Main(string argument) {
 	}
 	justCompiled = false;
 
+	// ========== END OF STARTUP ==========
 
 
 
 
+
+
+
+
+
+
+	// ========== PHYSICS ==========
 
  	// get gravity in world space
 	Vector3D worldGrav = controller.GetNaturalGravity();
@@ -256,6 +265,18 @@ public void Main(string argument) {
 
 	Echo("Required Force: " + $"{Math.Round(requiredVec.Length(),0)}" + "N");
 
+	// ========== END OF PHYSICS ==========
+
+
+
+
+
+
+
+
+
+
+	// ========== DISTRIBUTE THE FORCE EVENLY BETWEEN NACELLES ==========
 
 	// update thrusters on/off and re-check nacelles direction
 	foreach(Nacelle n in nacelles) {
@@ -271,7 +292,6 @@ public void Main(string argument) {
 		// Echo($"avaliable: {n.availableThrusters.Count}");
 		// Echo($"active: {n.activeThrusters.Count}");
 	}
-
 
 	/* TOOD: redo this */
 	// group similar nacelles (rotor axis is same direction)
@@ -337,6 +357,7 @@ public void Main(string argument) {
 	Echo(deBug);
 	write(deBug);
 	deBug = "";
+	// ========== END OF MAIN ==========
 }
 
 
@@ -642,7 +663,6 @@ public void checkNacelles(bool verbose) {
 		return;
 	}
 
-	//TODO: check for damage
 	echoV("They seem fine.", verbose);
 }
 
