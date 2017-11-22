@@ -645,12 +645,13 @@ public bool init() {
 			return false;
 		}
 	}
+	/*
 	if(false && timer == null) {//TODO: remove this
 		timer = getTimer();
 		if(timer == null) {
 			return false;
 		}
-	}
+	}/**/
 	return true;
 }
 /*
