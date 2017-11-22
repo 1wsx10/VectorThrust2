@@ -429,6 +429,9 @@ public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 		Dictionary<string, object> inputs = new Dictionary<string, object>();
 		try {
 			inputs = Me.GetValue<Dictionary<string, object>>("ControlModule.Inputs");
+			Me.SetValue<string>("ControlModule.AddInput", "all");
+			Me.SetValue<bool>("ControlModule.RunOnInput", false);
+			Me.SetValue<int>("ControlModule.InputState", 1);
 		} catch(Exception e) {
 			controlModule = false;
 		}

@@ -23,14 +23,9 @@
 the last 3 control your "Target Accel" value and are optional
 
 ## CONTROL MODULE SETUP
-make sure the mod is installed: just subscribe then add it to the mod list in world options
+just install the mod and you're good to go!
 
-this will add settings to the programmable block. set these:
-1. Monitored inputs: read all inputs
-2. Trigger on state: pressed and released
-3. Repeat interval: 0.016 (you can type it by ctrl+click the slider bar)
-
-this sets the following buttons:
+### BUTTONS
 
 * __suit jetpack key__:		engines on/off
 * __inertia dampeners key__:	inertia dampenerse on/off
