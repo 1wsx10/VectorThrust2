@@ -57,9 +57,9 @@ public const float maxRotorRPM = 60;
 //              V 0 degrees                      V 360 degrees
 // 				|-----\                    /------
 // desired power|----------------------------------------- value of 0.1
-// 				|      \                 /
-// 				|       \               /
-// 				|        \             /
+// 				|       \                /
+// 				|        \              /
+// 				|         \            /
 // no power 	|-----------------------------------------
 //
 //
@@ -157,11 +157,12 @@ public void Main(string argument) {
 		}
 	}
 
+	checkNacelles(verboseCheck);
 	if(updateNacelles) {
+		nacelles.Clear();
 		nacelles = getNacelles();
 		updateNacelles = false;
 	}
-	checkNacelles(verboseCheck);
 
 	if(standby) {
 		Echo("Standing By");
@@ -244,14 +245,17 @@ public void Main(string argument) {
 
 	// update thrusters on/off and re-check nacelles direction
 	foreach(Nacelle n in nacelles) {
+		if(!n.validateThrusters(jetpack)) {
+			n.needsUpdate = true;
+		}
 		if(n.needsUpdate) {
 			updateNacellesCount++;
 			n.detectThrustDirection();
 			n.needsUpdate = false;
 		}
-		if(!n.validateThrusters(jetpack)) {
-			n.needsUpdate = true;
-		}
+		Echo($"thrusters: {n.thrusters.Count}");
+		Echo($"avaliable: {n.availableThrusters.Count}");
+		Echo($"active: {n.activeThrusters.Count}");
 	}
 
 
@@ -335,6 +339,7 @@ public IMyShipController controller;
 public IMyTimerBlock timer = null;
 public List<Nacelle> nacelles = new List<Nacelle>();
 public int rotorCount = 0;
+public int rotorTopCount = 0;
 public int thrusterCount = 0;
 public bool updateNacelles = false;
 
@@ -587,7 +592,23 @@ public void checkNacelles(bool verbose) {
 
 	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(blocks);
 	if(rotorCount != blocks.Count) {
-		echoV($"Rotor count {rotorCount} is out of whack", verbose);
+		echoV($"Rotor count {rotorCount} is out of whack {blocks.Count}", verbose);
+		// nacelles.Clear();
+		// nacelles = getNacelles();
+		updateNacelles = true;
+		return;
+	}
+
+	var rotorHeads = new List<IMyAttachableTopBlock>();
+	foreach(IMyMotorStator rotor in blocks) {
+		if(rotor.Top != null) {
+			rotorHeads.Add(rotor.Top);
+		}
+	}
+	if(rotorTopCount != rotorHeads.Count) {
+		echoV($"Rotor Head count {rotorTopCount} is out of whack {rotorHeads.Count}", verbose);
+		echoV($"Rotors: {blocks.Count}", verbose);
+		// nacelles.Clear();
 		// nacelles = getNacelles();
 		updateNacelles = true;
 		return;
@@ -596,14 +617,15 @@ public void checkNacelles(bool verbose) {
 
 	GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks);
 	if(thrusterCount != blocks.Count) {
-		echoV($"Thruster count {thrusterCount} is out of whack", verbose);
+		echoV($"Thruster count {thrusterCount} is out of whack {blocks.Count}", verbose);
+		// nacelles.Clear();
 		// nacelles = getNacelles();
 		updateNacelles = true;
 		return;
 	}
 
 	//TODO: check for damage
-	echoV("Everything seems fine.", verbose);
+	echoV("They seem fine.", verbose);
 }
 
 void echoV(string s, bool verbose) {
@@ -614,6 +636,7 @@ void echoV(string s, bool verbose) {
 
 public bool init() {
 	Echo("init");
+	nacelles.Clear();
 	nacelles = getNacelles();
 	if(controller == null) {
 		controller = getController();
@@ -650,69 +673,64 @@ List<Nacelle> getNacelles() {
 	gotNacellesCount++;
 	var blocks = new List<IMyTerminalBlock>();
 	var nacelles = new List<Nacelle>();
-	bool flag;
+	// 1 call to GTS
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks);
 
-	rotorCount = 0;
-	thrusterCount = 0;
+	echoV("Getting Blocks for thrusters & rotors", verboseCheck);
+	// get the blocks we care about
+	var rotors = new List<IMyMotorStator>();
+	var thrusters = new List<IMyThrust>();
+	for(int i = blocks.Count-1; i >= 0; i--) {
+		if(blocks[i] is IMyThrust) {
+			thrusters.Add((IMyThrust)blocks[i]);
+		} else if(blocks[i] is IMyMotorStator) {
+			rotors.Add((IMyMotorStator)blocks[i]);
+		}
+		blocks.RemoveAt(i);
+	}
+	rotorCount = rotors.Count;
+	thrusterCount = thrusters.Count;
+	blocks.Clear();
 
 
-	// get rotors
-	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(blocks);
+	echoV("Getting Rotors", verboseCheck);
+	// make nacelles out of all valid rotors
+	rotorTopCount = 0;
+	foreach(IMyMotorStator current in rotors) {
 
-	foreach(IMyMotorStator r in blocks) {
-		rotorCount++;
-		if(false/* TODO: set to not be in a nacelle */) {
+		if(current.Top == null) {
 			continue;
+		} else {
+			rotorTopCount++;
 		}
 
 		//if topgrid is not programmable blocks grid
-		if(r.TopGrid.EntityId == Me.CubeGrid.EntityId) {
+		if(current.TopGrid == Me.CubeGrid) {
 			continue;
 		}
 
 		// it's not set to not be a nacelle rotor
 		// it's topgrid is not the programmable blocks grid
-		Rotor rotor = new Rotor(r);
+		Rotor rotor = new Rotor(current);
 		nacelles.Add(new Nacelle(rotor));
 	}
-	blocks.Clear();
 
-	// get thrusters
-	GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks);
-	foreach(IMyThrust t in blocks) {
-		thrusterCount++;
-		if(false/* TODO: set to not be in a nacelle */) {
-			continue;
-		}
-
-		// get rotor it belongs to
-		Nacelle nacelle = new Nacelle();// its impossible for the instance to be kept, this just shuts up the compiler
-		IMyCubeGrid grid = t.CubeGrid;
-		flag = false;
-		foreach(Nacelle n in nacelles) {
-			IMyCubeGrid rotorGrid = n.rotor.theBlock.TopGrid;
-			if(rotorGrid.EntityId == grid.EntityId) {
-				flag = true;// flag = 'it is on a rotor'
-				nacelle = n;
-				break;
-			}
-		}
-		if(!flag) {// not on any rotor
-			continue;
-		}
-
-		// it's not set to not be a nacelle thruster
-		// it's on the end of a rotor
-		Thruster thruster = new Thruster(t);
-		nacelle.thrusters.Add(thruster);
-		nacelle.availableThrusters.Add(thruster);
-
-	}
+	echoV("Getting Thrusters", verboseCheck);
+	// add all thrusters to their corrisponding nacelle and remove nacelles that have none
 	for(int i = nacelles.Count-1; i >= 0; i--) {
+		for(int j = thrusters.Count-1; j >= 0; j--) {
+			if(thrusters[j].CubeGrid != nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
+			if(!thrusters[j].IsFunctional) continue;// broken, don't add it
+
+			nacelles[i].thrusters.Add(new Thruster(thrusters[j]));
+			thrusters.RemoveAt(j);// shorten the list we have to check
+		}
+		// remove nacelles without thrusters
 		if(nacelles[i].thrusters.Count == 0) {
-			nacelles.Remove(nacelles[i]);
+			nacelles.RemoveAt(i);
 			continue;
 		}
+		// if its still there, setup the nacelle
 		nacelles[i].validateThrusters(jetpack);
 		nacelles[i].detectThrustDirection();
 	}
@@ -811,7 +829,7 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		} else {
 			rotor.getAxis();
 			rotor.setFromVec(requiredVec);
-			// rotor.setFromVecNew(requiredVec);
+			// rotor.setFromVecOld(requiredVec);
 			errStr += rotor.errStr;
 			rotor.errStr = "";
 		}
@@ -847,15 +865,14 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 				if(!(t.theBlock.ShowInTerminal && t.theBlock.IsFunctional) //not (shown and functional)
 					|| (t.isOn && !t.theBlock.GetValue<bool>("OnOff") //or (was on and is now off)
 					&& (jetpack && oldJetpack))) {//if jetpack is on, the thruster has been turned off
-				//if jetpack is off, the thruster should still be in the group
+					//if jetpack is off, the thruster should still be in the group
 
 					//remove the thruster
 					availableThrusters.Remove(t);
 					needsUpdate = true;
 				}
 			} else {//not available
-				if((t.theBlock.ShowInTerminal && t.theBlock.IsFunctional) //(shown and functional)
-					&& (!t.isOn && t.theBlock.GetValue<bool>("OnOff"))) {//and (was off and is now on)
+				if(t.theBlock.ShowInTerminal && t.theBlock.IsWorking) { //(shown and functional)
 					availableThrusters.Add(t);
 					needsUpdate = true;
 					t.isOn = true;
@@ -989,11 +1006,12 @@ public class Thruster {
 	public IMyThrust theBlock;
 
 	// stays the same when in standby, if not in standby, this gets updated to weather or not the thruster is on
-	public bool isOn = true;
+	public bool isOn;
 	public string errStr = "";
 
 	public Thruster(IMyThrust thruster) {
 		this.theBlock = thruster;
+		this.isOn = theBlock.Enabled;
 	}
 
 	// sets the thrust in newtons (N)
