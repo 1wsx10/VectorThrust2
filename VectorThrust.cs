@@ -47,6 +47,11 @@ public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
 
+// choose weather you want the script to update once every frame, once every 10 frames, or once every 100 frames
+public const bool update100 = false;
+public const bool update10 = false;
+public const bool update1 = true;
+
 
 
 
@@ -87,7 +92,17 @@ public Program() {
 	programCounter = 0;
 	gotNacellesCount = 0;
 	updateNacellesCount = 0;
-	Runtime.UpdateFrequency = UpdateFrequency.Update1;
+	var update_frequency = UpdateFrequency.None;
+	if(update100) {
+		update_frequency |= UpdateFrequency.Update100;
+	}
+	if(update10) {
+		update_frequency |= UpdateFrequency.Update10;
+	}
+	if(update1) {
+		update_frequency |= UpdateFrequency.Update1;
+	}
+	Runtime.UpdateFrequency = update_frequency;
 }
 public void Save() {}
 
@@ -123,7 +138,7 @@ public void Main(string argument) {
 	}
 	write(spinner);
 
-	Echo("Starting Main");
+	// Echo("Starting Main");
 	argument = argument.ToLower();
 	bool togglePower = argument.Contains(standbyArg.ToLower());
 
@@ -253,9 +268,9 @@ public void Main(string argument) {
 			n.detectThrustDirection();
 			n.needsUpdate = false;
 		}
-		Echo($"thrusters: {n.thrusters.Count}");
-		Echo($"avaliable: {n.availableThrusters.Count}");
-		Echo($"active: {n.activeThrusters.Count}");
+		// Echo($"thrusters: {n.thrusters.Count}");
+		// Echo($"avaliable: {n.availableThrusters.Count}");
+		// Echo($"active: {n.activeThrusters.Count}");
 	}
 
 
@@ -436,7 +451,7 @@ public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 		try {
 			inputs = Me.GetValue<Dictionary<string, object>>("ControlModule.Inputs");
 			Me.SetValue<string>("ControlModule.AddInput", "all");
-			Me.SetValue<bool>("ControlModule.RunOnInput", false);
+			Me.SetValue<bool>("ControlModule.RunOnInput", true);
 			Me.SetValue<int>("ControlModule.InputState", 1);
 			Me.SetValue<float>("ControlModule.RepeatDelay", 0.016f);
 		} catch(Exception e) {
