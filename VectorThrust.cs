@@ -23,8 +23,12 @@ public const float accelBase = 1.5f;//accel = defaultAccel * g * base^exponent
 // multiplier for dampeners, higher is stronger dampeners
 public const float dampenersModifier = 0.1f;
 
+// choose weather you want the script to update once every frame, once every 10 frames, or once every 100 frames
+public const bool update100 = false;
+public const bool update10 = false;
+public const bool update1 = true;
+
 public const string LCDName = "%VectorLCD";
-public const string TimName = "%VectorTim";
 
 // arguments, you can change these to change what text you run the programmable block with
 public const string standbyArg = "%standby";
@@ -46,11 +50,6 @@ public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
-
-// choose weather you want the script to update once every frame, once every 10 frames, or once every 100 frames
-public const bool update100 = false;
-public const bool update10 = false;
-public const bool update1 = true;
 
 
 
@@ -362,12 +361,15 @@ public bool updateNacelles = false;
 public bool justCompiled = true;
 
 
+
 // DEPRECATED
 //public float speedLimit = 90000;//speed limit of your game
 //this is because you cant disable rotor safety lock
 //the best you can do is set the safety lock as max speed of the game.
 //default is 100m/s i recommend subtract 10 and set it as that.
 //make sure all your rotors safety lock is at max speed
+
+public const string TimName = "%VectorTim";
 
 // DEPRECATED
 // TODO: remove this
