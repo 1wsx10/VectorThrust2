@@ -555,6 +555,54 @@ IMyShipController getController() {
 	}
 
 	IMyShipController cont = blocks[0];
+	int lvl = 0;
+	bool allCockpitsAreFree = true;
+	int prevLvl = 0;
+	IMyShipController prevController = cont;
+	bool hasReverted = false;
+	for(int i = 0; i < blocks.Count; i++) {
+		// only one of them is being controlled
+		if(((IMyShipController)blocks[i]).IsUnderControl && allCockpitsAreFree) {
+			prevController = cont;
+			prevLvl = lvl;
+			cont = ((IMyShipController)blocks[i]);
+			lvl = 5;
+		}//more than one is being controlled, it reverts to previous setting
+		else if(((IMyShipController)blocks[i]).IsUnderControl && !allCockpitsAreFree && !hasReverted) {
+			lvl = prevLvl;
+			cont = prevController;
+			hasReverted = true;
+		}//has %Main in the name
+		else if(((IMyShipController)blocks[i]).CustomName.IndexOf("%Main") != -1 && lvl < 4) {
+			cont = ((IMyShipController)blocks[i]);
+			lvl = 4;
+		}//is ticked as a main cockpit
+		else if(((IMyShipController)blocks[i]).GetValue<bool>("MainCockpit") && lvl < 3) {
+			cont = ((IMyShipController)blocks[i]);
+			lvl = 3;
+		}//is set to control thrusters
+		else if(((IMyShipController)blocks[i]).ControlThrusters && lvl < 2) {
+			cont = ((IMyShipController)blocks[i]);
+			lvl = 2;
+		}
+		else {
+			cont = ((IMyShipController)blocks[i]);
+			lvl = 1;
+		}
+	}
+	return cont;
+}
+
+/*
+IMyShipController getController() {
+	var blocks = new List<IMyShipController>();
+	GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks);
+	if(blocks.Count < 1) {
+		Echo("ERROR: no ship controller found");
+		return null;
+	}
+
+	IMyShipController cont = blocks[0];
 	int undercontrol = 0;
 	// bool allCockpitsAreFree = true;
 	int cockpitID = 0;
@@ -590,7 +638,7 @@ IMyShipController getController() {
 			cont = ((IMyShipController)blocks[i]);
 			lvl = 1;
 		}
-	}*/
+	}*//*
 	for(int i = 0; i < blocks.Count; i++) {
 		//keep track of all the cockpits under control
 		if (((IMyShipController)blocks[i]).IsUnderControl)
@@ -618,7 +666,7 @@ IMyShipController getController() {
 		cont = ((IMyShipController)blocks[cockpitID]);
 	}
 	return cont;
-}
+}*/
 
 // checks to see if the nacelles have changed
 public void checkNacelles(bool verbose) {
