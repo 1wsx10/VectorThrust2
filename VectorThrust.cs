@@ -109,7 +109,7 @@ public long programCounter;
 public long gotNacellesCount;
 public long updateNacellesCount;
 
-public void Main(string argument) {
+public void Main(string argument, UpdateType runType) {
 	// ========== STARTUP ==========
 	writeBool = false;
 
@@ -131,13 +131,27 @@ public void Main(string argument) {
 	}
 	write(spinner);
 
+	UpdateType valid_argument_updates = UpdateType.None;
+	valid_argument_updates |= UpdateType.Terminal;
+	valid_argument_updates |= UpdateType.Trigger;
+	valid_argument_updates |= UpdateType.Antenna;
+	// valid_argument_updates |= UpdateType.Mod;
+	// valid_argument_updates |= UpdateType.Script;
+	// valid_argument_updates |= UpdateType.Update1;
+	// valid_argument_updates |= UpdateType.Update10;
+	// valid_argument_updates |= UpdateType.Update100;
+	if((runType & valid_argument_updates) == UpdateType.None) {
+		argument = "";
+	}
+
 	// Echo("Starting Main");
 	argument = argument.ToLower();
 	bool togglePower = argument.Contains(standbyArg.ToLower());
 
 	// going into standby mode
-	if(togglePower && !standby) {
+	if(togglePower && !standby || goToStandby) {
 		standby = true;
+		goToStandby = false;
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_Off");
 			foreach(Thruster t in n.thrusters) {
@@ -183,6 +197,19 @@ public void Main(string argument) {
 	}
 
 	if(justCompiled) {
+		// Runtime.UpdateFrequency = UpdateFrequency.None;
+		if(Storage == "") {
+			Storage = "Don't Start Automatically";
+			// Runtime.UpdateFrequency = update_frequency;
+			// run normally
+		} else {
+			Runtime.UpdateFrequency = UpdateFrequency.Once;
+
+			// go into standby mode
+			goToStandby = true;
+			justCompiled = false;
+			return;
+		}
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_On");
 			foreach(Thruster t in n.thrusters) {
@@ -374,6 +401,7 @@ public bool updateNacelles = false;
 public Vector3D shipVelocity = Vector3D.Zero;
 
 public bool justCompiled = true;
+public bool goToStandby = false;
 
 
 
