@@ -280,6 +280,13 @@ public void Main(string argument, UpdateType runType) {
 	// f=ma
 	desiredVec *= shipMass * (float)getAcceleration(gravLength);
 
+	// remove thrust done by normal thrusters
+	for(int i = 0; i < normalThrusters.Count; i++) {
+		Vector3D thrust = normalThrusters[i].GridThrustDirection * normalThrusters[i].CurrentThrust;
+		thrust = Vector3D.TransformNormal(thrust, normalThrusters[i].WorldMatrix);
+		desiredVec += thrust;
+	}
+
 	// point thrust in opposite direction, add weight. this is force, not acceleration
 	Vector3D requiredVec = -desiredVec + shipWeight;
 
@@ -394,6 +401,7 @@ public bool writeBool = false;
 public IMyShipController controller;
 public IMyTimerBlock timer = null;
 public List<Nacelle> nacelles = new List<Nacelle>();
+public List<IMyThrust> normalThrusters = new List<IMyThrust>();
 public int rotorCount = 0;
 public int rotorTopCount = 0;
 public int thrusterCount = 0;
@@ -737,7 +745,7 @@ List<Nacelle> getNacelles() {
 	var blocks = new List<IMyTerminalBlock>();
 	var nacelles = new List<Nacelle>();
 	// 1 call to GTS
-	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks);
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyThrust) || (block is IMyMotorStator));
 
 	echoV("Getting Blocks for thrusters & rotors", verboseCheck);
 	// get the blocks we care about
@@ -746,7 +754,7 @@ List<Nacelle> getNacelles() {
 	for(int i = blocks.Count-1; i >= 0; i--) {
 		if(blocks[i] is IMyThrust) {
 			thrusters.Add((IMyThrust)blocks[i]);
-		} else if(blocks[i] is IMyMotorStator) {
+		} else/* if(blocks[i] is IMyMotorStator) */{
 			rotors.Add((IMyMotorStator)blocks[i]);
 		}
 		blocks.RemoveAt(i);
@@ -779,6 +787,7 @@ List<Nacelle> getNacelles() {
 	}
 
 	echoV("Getting Thrusters", verboseCheck);
+	normalThrusters.Clear();
 	// add all thrusters to their corrisponding nacelle and remove nacelles that have none
 	for(int i = nacelles.Count-1; i >= 0; i--) {
 		for(int j = thrusters.Count-1; j >= 0; j--) {
@@ -796,6 +805,11 @@ List<Nacelle> getNacelles() {
 		// if its still there, setup the nacelle
 		nacelles[i].validateThrusters(jetpack);
 		nacelles[i].detectThrustDirection();
+	}
+
+	for(int i = 0; i < thrusters.Count(); i++) {
+		normalThrusters.Add(thrusters[i]);
+		thrusters.RemoveAt(i);
 	}
 
 	return nacelles;
