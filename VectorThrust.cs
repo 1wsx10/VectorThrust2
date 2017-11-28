@@ -280,15 +280,16 @@ public void Main(string argument, UpdateType runType) {
 	// f=ma
 	desiredVec *= shipMass * (float)getAcceleration(gravLength);
 
-	// remove thrust done by normal thrusters
-	for(int i = 0; i < normalThrusters.Count; i++) {
-		Vector3D thrust = normalThrusters[i].GridThrustDirection * normalThrusters[i].CurrentThrust;
-		thrust = Vector3D.TransformNormal(thrust, normalThrusters[i].WorldMatrix);
-		desiredVec += thrust;
-	}
-
 	// point thrust in opposite direction, add weight. this is force, not acceleration
 	Vector3D requiredVec = -desiredVec + shipWeight;
+
+	// remove thrust done by normal thrusters
+	Vector3D thrust = Vector3D.Zero;
+	for(int i = 0; i < normalThrusters.Count; i++) {
+		thrust = /*normalThrusters[i].GridThrustDirection*/Vector3D.Forward * normalThrusters[i].CurrentThrust;//looks like GridThrustDirection is wrong
+		thrust = Vector3D.TransformNormal(thrust, normalThrusters[i].WorldMatrix);
+		requiredVec -= thrust;
+	}
 
 	Echo("Required Force: " + $"{Math.Round(requiredVec.Length(),0)}" + "N");
 
@@ -792,7 +793,7 @@ List<Nacelle> getNacelles() {
 	for(int i = nacelles.Count-1; i >= 0; i--) {
 		for(int j = thrusters.Count-1; j >= 0; j--) {
 			if(thrusters[j].CubeGrid != nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
-			if(!thrusters[j].IsFunctional) continue;// broken, don't add it
+			// if(!thrusters[j].IsFunctional) continue;// broken, don't add it
 
 			nacelles[i].thrusters.Add(new Thruster(thrusters[j]));
 			thrusters.RemoveAt(j);// shorten the list we have to check
@@ -1115,12 +1116,12 @@ public class Thruster {
 	// the clipping value 'thrustModifier' defines how far thrustVec can be away from the direction of thrust, and have the power still at max
 	// if 'thrustModifier' is at 1, the thruster will be at full power when it is at 90 degrees from the direction of travel
 	public void setThrust(Vector3D thrustVec) {
-		Vector3D forward = theBlock.GridThrustDirection;
+		Vector3D backward = theBlock.GridThrustDirection * -1;
 		var blockMatrix = theBlock.WorldMatrix;
 		Vector3D thrustVecLocal = Vector3D.TransformNormal(thrustVec, MatrixD.Invert(blockMatrix));
 
-		double dot = Vector3D.Dot(thrustVecLocal, forward * -1);
-		double Length = thrustVecLocal.Length() /* * forward.Length()*/;// forward.Length() is always 1, so no need to calculate it
+		double dot = Vector3D.Dot(thrustVecLocal, backward);
+		double Length = thrustVecLocal.Length() /* * backward.Length()*/;// backward.Length() is always 1, so no need to calculate it
 		double thrustOffset = (dot/Length + 1) / (1 + (1 - Program.thrustModifier));//put it in some graphing calculator software where 'dot/Length' is cos(x) and adjust the thrustModifier value between 0 and 1, then you can visualise it
 		// errStr += progressBar(thrustOffset);
 		if(false) {
