@@ -469,7 +469,7 @@ public bool write(string str) {
 		var temp = (IMyTextPanel)blocks[0];
 		bool found = false;
 		for(int i = 0; i < blocks.Count; i++) {
-			if(blocks[i].CustomName.IndexOf(LCDName) != -1) {
+			if(blocks[i].CustomName.ToLower().IndexOf(LCDName.ToLower()) != -1) {
 				temp = (IMyTextPanel)blocks[i];
 				found = true;
 			}
