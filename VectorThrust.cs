@@ -1120,9 +1120,9 @@ public class Thruster {
 		double Length = thrustVecLocal.Length() /* * backward.Length()*/;// backward.Length() is always 1, so no need to calculate it
 		double thrustOffset = (dot/Length + 1) / (1 + (1 - Program.thrustModifier));//put it in some graphing calculator software where 'dot/Length' is cos(x) and adjust the thrustModifier value between 0 and 1, then you can visualise it
 		// errStr += progressBar(thrustOffset);
-		if(false) {
+		/*if(false) {
 			return;//TODO: reminder to fix the following:
-		}
+		}*/
 		double thrust = thrustVec.Length()/* * thrustOffset*/;//TODO: correct for the rotor being out of alignment then re-enable this
 		if(thrust > theBlock.MaxThrust) {
 			thrust = theBlock.MaxThrust;
