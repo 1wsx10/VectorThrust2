@@ -284,17 +284,15 @@ public void Main(string argument, UpdateType runType) {
 	Vector3D requiredVec = -desiredVec + shipWeight;
 
 	// remove thrust done by normal thrusters
-	Vector3D thrust = Vector3D.Zero;
 	for(int i = 0; i < normalThrusters.Count; i++) {
-		thrust = /*normalThrusters[i].GridThrustDirection*/Vector3D.Forward * normalThrusters[i].CurrentThrust;//looks like GridThrustDirection is wrong
-		thrust = Vector3D.TransformNormal(thrust, normalThrusters[i].WorldMatrix);
-		requiredVec -= thrust;
+		requiredVec -= -1 * normalThrusters[i].WorldMatrix.Backward * normalThrusters[i].CurrentThrust;
+		// Echo($"{normalThrusters[i].CustomName}: {Vector3D.TransformNormal(normalThrusters[i].CurrentThrust * normalThrusters[i].WorldMatrix.Backward, MatrixD.Invert(normalThrusters[i].WorldMatrix))}");
+		// write($"{normalThrusters[i].CustomName}: \n{Vector3D.TransformNormal(normalThrusters[i].CurrentThrust * normalThrusters[i].WorldMatrix.Backward, MatrixD.Invert(normalThrusters[i].WorldMatrix))}");
 	}
 
 	Echo("Required Force: " + $"{Math.Round(requiredVec.Length(),0)}" + "N");
 
 	// ========== END OF PHYSICS ==========
-
 
 
 
@@ -518,6 +516,9 @@ public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 		if(inputs.ContainsKey(dampenersButton) && !dampenersIsPressed) {//inertia dampener key
 			dampeners = !dampeners;//toggle
 			dampenersIsPressed = true;
+			if(normalThrusters.Count != 0) {
+				dampeners = controller.DampenersOverride;
+			}
 			// this doesn't work when there are no thrusters on the same grid as the cockpit
 			// dampeners = controller.GetValue<bool>("DampenersOverride");
 		}
@@ -751,17 +752,18 @@ List<Nacelle> getNacelles() {
 	echoV("Getting Blocks for thrusters & rotors", verboseCheck);
 	// get the blocks we care about
 	var rotors = new List<IMyMotorStator>();
-	var thrusters = new List<IMyThrust>();
+	normalThrusters.Clear();
+	// var thrusters = new List<IMyThrust>();
 	for(int i = blocks.Count-1; i >= 0; i--) {
 		if(blocks[i] is IMyThrust) {
-			thrusters.Add((IMyThrust)blocks[i]);
+			normalThrusters.Add((IMyThrust)blocks[i]);
 		} else/* if(blocks[i] is IMyMotorStator) */{
 			rotors.Add((IMyMotorStator)blocks[i]);
 		}
 		blocks.RemoveAt(i);
 	}
 	rotorCount = rotors.Count;
-	thrusterCount = thrusters.Count;
+	thrusterCount = normalThrusters.Count;
 	blocks.Clear();
 
 
@@ -788,15 +790,14 @@ List<Nacelle> getNacelles() {
 	}
 
 	echoV("Getting Thrusters", verboseCheck);
-	normalThrusters.Clear();
 	// add all thrusters to their corrisponding nacelle and remove nacelles that have none
 	for(int i = nacelles.Count-1; i >= 0; i--) {
-		for(int j = thrusters.Count-1; j >= 0; j--) {
-			if(thrusters[j].CubeGrid != nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
+		for(int j = normalThrusters.Count-1; j >= 0; j--) {
+			if(normalThrusters[j].CubeGrid != nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
 			// if(!thrusters[j].IsFunctional) continue;// broken, don't add it
 
-			nacelles[i].thrusters.Add(new Thruster(thrusters[j]));
-			thrusters.RemoveAt(j);// shorten the list we have to check
+			nacelles[i].thrusters.Add(new Thruster(normalThrusters[j]));
+			normalThrusters.RemoveAt(j);// shorten the list we have to check
 		}
 		// remove nacelles without thrusters
 		if(nacelles[i].thrusters.Count == 0) {
@@ -806,11 +807,6 @@ List<Nacelle> getNacelles() {
 		// if its still there, setup the nacelle
 		nacelles[i].validateThrusters(jetpack);
 		nacelles[i].detectThrustDirection();
-	}
-
-	for(int i = 0; i < thrusters.Count(); i++) {
-		normalThrusters.Add(thrusters[i]);
-		thrusters.RemoveAt(i);
 	}
 
 	return nacelles;
@@ -995,9 +991,9 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 				// add it in
 				var thrustForwardVec = Base6Directions.GetVector(thrustForward);
 				if(thrustForwardVec.X < 0 || thrustForwardVec.Y < 0 || thrustForwardVec.Z < 0) {
-					engineDirectionNeg += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust/* * (t.isOn ? 1 : 0)*/;
+					engineDirectionNeg += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust;
 				} else {
-					engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust/* * (t.isOn ? 1 : 0)*/;
+					engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust;
 				}
 			} else {
 				// thrusters.Remove(t);
