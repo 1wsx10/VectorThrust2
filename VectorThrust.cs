@@ -181,7 +181,7 @@ public void Main(string argument, UpdateType runType) {
 		Runtime.UpdateFrequency = UpdateFrequency.Update1;
 	}
 
-	if(argument.Contains(resetArg.ToLower()) || controller == null /*|| timer == null*/ || justCompiled) {
+	if(argument.Contains(resetArg.ToLower()) || controllers.Count == 0 /*|| timer == null*/ || justCompiled) {
 		if(!init()) {
 			return;
 		}
@@ -243,15 +243,15 @@ public void Main(string argument, UpdateType runType) {
 	// ========== PHYSICS ==========
 
  	// get gravity in world space
-	Vector3D worldGrav = controller.GetNaturalGravity();
+	Vector3D worldGrav = usableControllers[0].GetNaturalGravity();
 
 	// get velocity
-	MyShipVelocities shipVelocities = controller.GetShipVelocities();
+	MyShipVelocities shipVelocities = usableControllers[0].GetShipVelocities();
 	shipVelocity = shipVelocities.LinearVelocity;
 	// Vector3D shipAngularVelocity = shipVelocities.AngularVelocity;
 
 	// setup mass
-	MyShipMass myShipMass = controller.CalculateShipMass();
+	MyShipMass myShipMass = usableControllers[0].CalculateShipMass();
 	float shipMass = myShipMass.PhysicalMass;
 
 	// setup gravity
@@ -260,7 +260,7 @@ public void Main(string argument, UpdateType runType) {
 		gravLength = zeroGAcceleration;
 	}
 
-	Vector3D desiredVec = getMovementInput(controller.WorldMatrix, argument);
+	Vector3D desiredVec = getMovementInput(argument);
 
 	//safety, dont go over max speed DEPRECATED (SE no longer has safety-lock so this is no longer needed)
 	/*if(shipVelocity.Length() > speedLimit) {
@@ -405,8 +405,11 @@ public bool minusIsPressed = false;
 private IMyTextPanel screen;
 public bool writeBool = false;
 
-public IMyShipController controller;
-public IMyTimerBlock timer = null;
+// public IMyShipController controller;
+public List<IMyShipController> controllers = new List<IMyShipController>();
+public List<IMyShipController> usableControllers = new List<IMyShipController>();
+public IMyShipController mainController = null;
+// public IMyTimerBlock timer = null;
 public List<Nacelle> nacelles = new List<Nacelle>();
 public List<IMyThrust> normalThrusters = new List<IMyThrust>();
 public int rotorCount = 0;
@@ -503,9 +506,13 @@ public Vector3D project(Vector3D a, Vector3D b) {
 	return b * aDotB / bDotB;
 }
 
-// TODO: look over this
-public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
-	Vector3 moveVec = Vector3.Zero;
+// get movement and turn it into worldspace
+public Vector3D getWorldMoveIndicator(IMyShipController cont) {
+	return Vector3D.TransformNormal(cont.MoveIndicator, cont.WorldMatrix);
+}
+
+public Vector3D getMovementInput(string arg) {
+	Vector3D moveVec = Vector3D.Zero;
 
 	if(controlModule) {
 		// setup control module
@@ -524,11 +531,6 @@ public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 		if(inputs.ContainsKey(dampenersButton) && !dampenersIsPressed) {//inertia dampener key
 			dampeners = !dampeners;//toggle
 			dampenersIsPressed = true;
-			if(normalThrusters.Count != 0) {
-				dampeners = controller.DampenersOverride;
-			}
-			// this doesn't work when there are no thrusters on the same grid as the cockpit
-			// dampeners = controller.GetValue<bool>("DampenersOverride");
 		}
 		if(!inputs.ContainsKey(dampenersButton)) {
 			dampenersIsPressed = false;
@@ -559,17 +561,31 @@ public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 			accelExponent = 0;
 		}
 
-		// movement controls
-		try {
-			// moveVec = (Vector3)inputs["c.movement"];
-			moveVec = controller.MoveIndicator;
-		} catch(Exception e) {
-			// no movement
+	}
+
+	// dampeners (if there are any normal thrusters, the dampeners control works)
+	if(normalThrusters.Count != 0) {
+		if(mainController != null && mainController.IsUnderControl) {
+			dampeners = mainController.DampenersOverride;
+		} else {
+			dampeners = false;
+			foreach(IMyShipController cont in controllers) {
+				if(cont.DampenersOverride && cont.IsUnderControl) {
+					dampeners = true;
+				}
+			}
 		}
+	}
+
+	// movement controls
+	if(mainController != null && mainController.IsUnderControl) {
+		moveVec = getWorldMoveIndicator(mainController);
 	} else {
-		moveVec = controller.MoveIndicator;
-		// Vector2 roll = controller.RotationIndecator;
-		// float roll = controller.RollIndecator;
+		foreach(IMyShipController cont in controllers) {
+			if(cont.IsUnderControl) {
+				moveVec += getWorldMoveIndicator(cont);
+			}
+		}
 	}
 
 	if(arg.Contains(dampenersArg.ToLower())) {
@@ -588,10 +604,34 @@ public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 		accelExponent = 0;
 	}
 
-	return Vector3D.TransformNormal(moveVec, controllerMatrix);//turn movement into worldspace
+	return moveVec;
 }
 
+bool getControllers() {
+	var blocks = new List<IMyShipController>();
+	GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks, cont => cont.CanControlShip && cont.ControlThrusters);
+	mainController = null;
 
+	usableControllers.Clear();
+
+	for(int i = 0; i < blocks.Count; i++) {
+		if(!blocks[i].ShowInTerminal) continue;
+		if(blocks[i].IsMainCockpit) {
+			mainController = blocks[i];
+		}
+		usableControllers.Add(blocks[i]);
+	}
+
+	if(usableControllers.Count == 0) {
+		Echo("ERROR: no ship controller found");
+		return false;
+	}
+
+	controllers = blocks;
+	return true;
+}
+
+/*
 IMyShipController getController() {
 	var blocks = new List<IMyShipController>();
 	GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks);
@@ -637,7 +677,7 @@ IMyShipController getController() {
 		}
 	}
 	return cont;
-}
+}//*/
 
 /*
 IMyShipController getController() {
@@ -719,36 +759,49 @@ public void checkNacelles(bool verbose) {
 	var blocks = new List<IMyTerminalBlock>();
 	echoV("Checking Nacelles...", verbose);
 
-	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(blocks);
-	if(rotorCount != blocks.Count) {
-		echoV($"Rotor count {rotorCount} is out of whack {blocks.Count}", verbose);
-		// nacelles.Clear();
-		// nacelles = getNacelles();
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyShipController || block is IMyThrust || block is IMyMotorStator));
+	List<IMyShipController> conts = new List<IMyShipController>();
+	List<IMyMotorStator> rots = new List<IMyMotorStator>();
+	List<IMyThrust> thrs = new List<IMyThrust>();
+
+	for(int i = 0; i < blocks.Count; i++) {
+		if(blocks[i] is IMyShipController) {
+			conts.Add((IMyShipController)blocks[i]);
+		}
+		if(blocks[i] is IMyMotorStator) {
+			rots.Add((IMyMotorStator)blocks[i]);
+		}
+		if(blocks[i] is IMyThrust) {
+			thrs.Add((IMyThrust)blocks[i]);
+		}
+	}
+
+	if((mainController != null ? !mainController.IsMainCockpit : false) || controllers.Count != conts.Count) {
+		echoV($"Controller count ({controllers.Count}) is out of whack (current: {conts.Count})", verbose);
+		getControllers();
+	}
+
+	if(rotorCount != rots.Count) {
+		echoV($"Rotor count ({rotorCount}) is out of whack (current: {rots.Count})", verbose);
 		updateNacelles = true;
 		return;
 	}
 
 	var rotorHeads = new List<IMyAttachableTopBlock>();
-	foreach(IMyMotorStator rotor in blocks) {
+	foreach(IMyMotorStator rotor in rots) {
 		if(rotor.Top != null) {
 			rotorHeads.Add(rotor.Top);
 		}
 	}
 	if(rotorTopCount != rotorHeads.Count) {
-		echoV($"Rotor Head count {rotorTopCount} is out of whack {rotorHeads.Count}", verbose);
-		echoV($"Rotors: {blocks.Count}", verbose);
-		// nacelles.Clear();
-		// nacelles = getNacelles();
+		echoV($"Rotor Head count ({rotorTopCount}) is out of whack (current: {rotorHeads.Count})", verbose);
+		echoV($"Rotors: {rots.Count}", verbose);
 		updateNacelles = true;
 		return;
 	}
-	blocks.Clear();
 
-	GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks);
-	if(thrusterCount != blocks.Count) {
-		echoV($"Thruster count {thrusterCount} is out of whack {blocks.Count}", verbose);
-		// nacelles.Clear();
-		// nacelles = getNacelles();
+	if(thrusterCount != thrs.Count) {
+		echoV($"Thruster count ({thrusterCount}) is out of whack (current: {thrs.Count})", verbose);
 		updateNacelles = true;
 		return;
 	}
@@ -766,11 +819,9 @@ public bool init() {
 	Echo("init");
 	nacelles.Clear();
 	nacelles = getNacelles();
-	if(controller == null) {
-		controller = getController();
-		if(controller == null) {
-			return false;
-		}
+	getControllers();
+	if(usableControllers.Count == 0) {
+		return false;
 	}
 	/*
 	if(false && timer == null) {//TODO: remove this
@@ -962,7 +1013,12 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 
 		// maybe lerp this in the future
 		if(requiredVec.LengthSquared() < gravCutoff*gravCutoff) {// Zero G
-			Vector3D direction = (program.controller.WorldMatrix.Down + program.controller.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+			Vector3D direction = Vector3D.Zero;
+			if(program.mainController != null) {
+				direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+			} else {
+				direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+			}
 			if(program.shipVelocity.LengthSquared() > direction.LengthSquared()) {
 				rotor.setFromVec(requiredVec - program.shipVelocity);
 			} else {
