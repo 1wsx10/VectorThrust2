@@ -39,7 +39,7 @@ public const string jetpackArg = "%jetpack";
 public const string raiseAccelArg = "%raiseAccel";
 public const string lowerAccelArg = "%lowerAccel";
 public const string resetAccelArg = "%resetAccel";
-public const string resetArg = "%reset";
+public const string resetArg = "%reset";//this one re-runs the initial setup... you probably want to use %resetAccel
 
 // control module gamepad bindings
 // type "/cm showinputs" into chat
@@ -136,7 +136,7 @@ public void Main(string argument, UpdateType runType) {
 	valid_argument_updates |= UpdateType.Trigger;
 	valid_argument_updates |= UpdateType.Antenna;
 	// valid_argument_updates |= UpdateType.Mod;
-	// valid_argument_updates |= UpdateType.Script;
+	valid_argument_updates |= UpdateType.Script;
 	// valid_argument_updates |= UpdateType.Update1;
 	// valid_argument_updates |= UpdateType.Update10;
 	// valid_argument_updates |= UpdateType.Update100;
@@ -148,8 +148,16 @@ public void Main(string argument, UpdateType runType) {
 	argument = argument.ToLower();
 	bool togglePower = argument.Contains(standbyArg.ToLower());
 
+	bool anyArg =
+	argument.Contains(dampenersArg.ToLower()) ||
+	argument.Contains(jetpackArg.ToLower()) ||
+	argument.Contains(raiseAccelArg.ToLower()) ||
+	argument.Contains(lowerAccelArg.ToLower()) ||
+	argument.Contains(resetAccelArg.ToLower()) ||
+	argument.Contains(resetArg.ToLower());
+
 	// going into standby mode
-	if(togglePower && !standby || goToStandby) {
+	if((togglePower && !standby) || goToStandby) {
 		standby = true;
 		goToStandby = false;
 		foreach(Nacelle n in nacelles) {
@@ -160,7 +168,7 @@ public void Main(string argument, UpdateType runType) {
 		}
 		Runtime.UpdateFrequency = UpdateFrequency.None;
 	// coming back from standby mode
-	} else if(togglePower && standby) {
+	} else if(anyArg && standby) {
 		standby = false;
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_On");
