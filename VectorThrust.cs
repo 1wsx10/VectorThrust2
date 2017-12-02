@@ -168,7 +168,7 @@ public void Main(string argument, UpdateType runType) {
 		}
 		Runtime.UpdateFrequency = UpdateFrequency.None;
 	// coming back from standby mode
-	} else if(anyArg && standby) {
+	} else if((anyArg || runType == UpdateType.Terminal) && standby) {
 		standby = false;
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_On");
