@@ -39,7 +39,7 @@ public const string jetpackArg = "%jetpack";
 public const string raiseAccelArg = "%raiseAccel";
 public const string lowerAccelArg = "%lowerAccel";
 public const string resetAccelArg = "%resetAccel";
-public const string resetArg = "%reset";
+public const string resetArg = "%reset";//this one re-runs the initial setup... you probably want to use %resetAccel
 
 // control module gamepad bindings
 // type "/cm showinputs" into chat
@@ -109,7 +109,7 @@ public long programCounter;
 public long gotNacellesCount;
 public long updateNacellesCount;
 
-public void Main(string argument) {
+public void Main(string argument, UpdateType runType) {
 	// ========== STARTUP ==========
 	writeBool = false;
 
@@ -131,13 +131,35 @@ public void Main(string argument) {
 	}
 	write(spinner);
 
+	UpdateType valid_argument_updates = UpdateType.None;
+	valid_argument_updates |= UpdateType.Terminal;
+	valid_argument_updates |= UpdateType.Trigger;
+	valid_argument_updates |= UpdateType.Antenna;
+	// valid_argument_updates |= UpdateType.Mod;
+	valid_argument_updates |= UpdateType.Script;
+	// valid_argument_updates |= UpdateType.Update1;
+	// valid_argument_updates |= UpdateType.Update10;
+	// valid_argument_updates |= UpdateType.Update100;
+	if((runType & valid_argument_updates) == UpdateType.None) {
+		argument = "";
+	}
+
 	// Echo("Starting Main");
 	argument = argument.ToLower();
 	bool togglePower = argument.Contains(standbyArg.ToLower());
 
+	bool anyArg =
+	argument.Contains(dampenersArg.ToLower()) ||
+	argument.Contains(jetpackArg.ToLower()) ||
+	argument.Contains(raiseAccelArg.ToLower()) ||
+	argument.Contains(lowerAccelArg.ToLower()) ||
+	argument.Contains(resetAccelArg.ToLower()) ||
+	argument.Contains(resetArg.ToLower());
+
 	// going into standby mode
-	if(togglePower && !standby) {
+	if((togglePower && !standby) || goToStandby) {
 		standby = true;
+		goToStandby = false;
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_Off");
 			foreach(Thruster t in n.thrusters) {
@@ -146,7 +168,7 @@ public void Main(string argument) {
 		}
 		Runtime.UpdateFrequency = UpdateFrequency.None;
 	// coming back from standby mode
-	} else if(togglePower && standby) {
+	} else if((anyArg || runType == UpdateType.Terminal) && standby) {
 		standby = false;
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_On");
@@ -183,6 +205,19 @@ public void Main(string argument) {
 	}
 
 	if(justCompiled) {
+		// Runtime.UpdateFrequency = UpdateFrequency.None;
+		if(Storage == "") {
+			Storage = "Don't Start Automatically";
+			// Runtime.UpdateFrequency = update_frequency;
+			// run normally
+		} else {
+			Runtime.UpdateFrequency = UpdateFrequency.Once;
+
+			// go into standby mode
+			goToStandby = true;
+			justCompiled = false;
+			return;
+		}
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_On");
 			foreach(Thruster t in n.thrusters) {
@@ -256,10 +291,16 @@ public void Main(string argument) {
 	// point thrust in opposite direction, add weight. this is force, not acceleration
 	Vector3D requiredVec = -desiredVec + shipWeight;
 
+	// remove thrust done by normal thrusters
+	for(int i = 0; i < normalThrusters.Count; i++) {
+		requiredVec -= -1 * normalThrusters[i].WorldMatrix.Backward * normalThrusters[i].CurrentThrust;
+		// Echo($"{normalThrusters[i].CustomName}: {Vector3D.TransformNormal(normalThrusters[i].CurrentThrust * normalThrusters[i].WorldMatrix.Backward, MatrixD.Invert(normalThrusters[i].WorldMatrix))}");
+		// write($"{normalThrusters[i].CustomName}: \n{Vector3D.TransformNormal(normalThrusters[i].CurrentThrust * normalThrusters[i].WorldMatrix.Backward, MatrixD.Invert(normalThrusters[i].WorldMatrix))}");
+	}
+
 	Echo("Required Force: " + $"{Math.Round(requiredVec.Length(),0)}" + "N");
 
 	// ========== END OF PHYSICS ==========
-
 
 
 
@@ -367,6 +408,7 @@ public bool writeBool = false;
 public IMyShipController controller;
 public IMyTimerBlock timer = null;
 public List<Nacelle> nacelles = new List<Nacelle>();
+public List<IMyThrust> normalThrusters = new List<IMyThrust>();
 public int rotorCount = 0;
 public int rotorTopCount = 0;
 public int thrusterCount = 0;
@@ -374,6 +416,7 @@ public bool updateNacelles = false;
 public Vector3D shipVelocity = Vector3D.Zero;
 
 public bool justCompiled = true;
+public bool goToStandby = false;
 
 
 
@@ -434,7 +477,7 @@ public bool write(string str) {
 		var temp = (IMyTextPanel)blocks[0];
 		bool found = false;
 		for(int i = 0; i < blocks.Count; i++) {
-			if(blocks[i].CustomName.IndexOf(LCDName) != -1) {
+			if(blocks[i].CustomName.ToLower().IndexOf(LCDName.ToLower()) != -1) {
 				temp = (IMyTextPanel)blocks[i];
 				found = true;
 			}
@@ -481,6 +524,9 @@ public Vector3D getMovementInput(MatrixD controllerMatrix, string arg) {
 		if(inputs.ContainsKey(dampenersButton) && !dampenersIsPressed) {//inertia dampener key
 			dampeners = !dampeners;//toggle
 			dampenersIsPressed = true;
+			if(normalThrusters.Count != 0) {
+				dampeners = controller.DampenersOverride;
+			}
 			// this doesn't work when there are no thrusters on the same grid as the cockpit
 			// dampeners = controller.GetValue<bool>("DampenersOverride");
 		}
@@ -757,22 +803,23 @@ List<Nacelle> getNacelles() {
 	var blocks = new List<IMyTerminalBlock>();
 	var nacelles = new List<Nacelle>();
 	// 1 call to GTS
-	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks);
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyThrust) || (block is IMyMotorStator));
 
 	echoV("Getting Blocks for thrusters & rotors", verboseCheck);
 	// get the blocks we care about
 	var rotors = new List<IMyMotorStator>();
-	var thrusters = new List<IMyThrust>();
+	normalThrusters.Clear();
+	// var thrusters = new List<IMyThrust>();
 	for(int i = blocks.Count-1; i >= 0; i--) {
 		if(blocks[i] is IMyThrust) {
-			thrusters.Add((IMyThrust)blocks[i]);
-		} else if(blocks[i] is IMyMotorStator) {
+			normalThrusters.Add((IMyThrust)blocks[i]);
+		} else/* if(blocks[i] is IMyMotorStator) */{
 			rotors.Add((IMyMotorStator)blocks[i]);
 		}
 		blocks.RemoveAt(i);
 	}
 	rotorCount = rotors.Count;
-	thrusterCount = thrusters.Count;
+	thrusterCount = normalThrusters.Count;
 	blocks.Clear();
 
 
@@ -801,12 +848,12 @@ List<Nacelle> getNacelles() {
 	echoV("Getting Thrusters", verboseCheck);
 	// add all thrusters to their corrisponding nacelle and remove nacelles that have none
 	for(int i = nacelles.Count-1; i >= 0; i--) {
-		for(int j = thrusters.Count-1; j >= 0; j--) {
-			if(thrusters[j].CubeGrid != nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
-			if(!thrusters[j].IsFunctional) continue;// broken, don't add it
+		for(int j = normalThrusters.Count-1; j >= 0; j--) {
+			if(normalThrusters[j].CubeGrid != nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
+			// if(!thrusters[j].IsFunctional) continue;// broken, don't add it
 
-			nacelles[i].thrusters.Add(new Thruster(thrusters[j]));
-			thrusters.RemoveAt(j);// shorten the list we have to check
+			nacelles[i].thrusters.Add(new Thruster(normalThrusters[j]));
+			normalThrusters.RemoveAt(j);// shorten the list we have to check
 		}
 		// remove nacelles without thrusters
 		if(nacelles[i].thrusters.Count == 0) {
@@ -1000,9 +1047,9 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 				// add it in
 				var thrustForwardVec = Base6Directions.GetVector(thrustForward);
 				if(thrustForwardVec.X < 0 || thrustForwardVec.Y < 0 || thrustForwardVec.Z < 0) {
-					engineDirectionNeg += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust/* * (t.isOn ? 1 : 0)*/;
+					engineDirectionNeg += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust;
 				} else {
-					engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust/* * (t.isOn ? 1 : 0)*/;
+					engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust;
 				}
 			} else {
 				// thrusters.Remove(t);
@@ -1121,12 +1168,12 @@ public class Thruster {
 	// the clipping value 'thrustModifier' defines how far thrustVec can be away from the direction of thrust, and have the power still at max
 	// if 'thrustModifier' is at 1, the thruster will be at full power when it is at 90 degrees from the direction of travel
 	public void setThrust(Vector3D thrustVec) {
-		Vector3D forward = theBlock.GridThrustDirection;
+		Vector3D backward = theBlock.GridThrustDirection * -1;
 		var blockMatrix = theBlock.WorldMatrix;
 		Vector3D thrustVecLocal = Vector3D.TransformNormal(thrustVec, MatrixD.Invert(blockMatrix));
 
-		double dot = Vector3D.Dot(thrustVecLocal, forward * -1);
-		double Length = thrustVecLocal.Length() /* * forward.Length()*/;// forward.Length() is always 1, so no need to calculate it
+		double dot = Vector3D.Dot(thrustVecLocal, backward);
+		double Length = thrustVecLocal.Length() /* * backward.Length()*/;// backward.Length() is always 1, so no need to calculate it
 		double thrustOffset = (dot/Length + 1) / (1 + (1 - Program.thrustModifier));//put it in some graphing calculator software where 'dot/Length' is cos(x) and adjust the thrustModifier value between 0 and 1, then you can visualise it
 		// errStr += progressBar(thrustOffset);
 		if(false) {
