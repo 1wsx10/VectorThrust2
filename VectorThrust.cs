@@ -4,10 +4,10 @@ public bool jetpack = false;
 
 public bool controlModule = true;
 
-public static string deBug = "";
-public bool standby = false;
-// this stops all calculations and everything is off in standby mode, good if you want to stop flying
+// standby stops all calculations and safely turns off all nacelles, good if you want to stop flying
 // but dont want to turn the craft off.
+public bool startInStandby = true;
+// change this is you don't want the script to start in standby... please only use this if you have permission from the server owner
 
 public const float defaultAccel = 1f;//this is the default target acceleration you see on the display
 // if you want to change the default, change this
@@ -151,6 +151,7 @@ public void Main(string argument, UpdateType runType) {
 	bool anyArg =
 	argument.Contains(dampenersArg.ToLower()) ||
 	argument.Contains(jetpackArg.ToLower()) ||
+	argument.Contains(standbyArg.ToLower()) ||
 	argument.Contains(raiseAccelArg.ToLower()) ||
 	argument.Contains(lowerAccelArg.ToLower()) ||
 	argument.Contains(resetAccelArg.ToLower()) ||
@@ -206,7 +207,7 @@ public void Main(string argument, UpdateType runType) {
 
 	if(justCompiled) {
 		// Runtime.UpdateFrequency = UpdateFrequency.None;
-		if(Storage == "") {
+		if(Storage == "" || !startInStandby) {
 			Storage = "Don't Start Automatically";
 			// Runtime.UpdateFrequency = update_frequency;
 			// run normally
@@ -416,11 +417,13 @@ public int rotorCount = 0;
 public int rotorTopCount = 0;
 public int thrusterCount = 0;
 public bool updateNacelles = false;
+public bool standby = false;
 public Vector3D shipVelocity = Vector3D.Zero;
 
 public bool justCompiled = true;
 public bool goToStandby = false;
 
+public string deBug = "";
 
 
 
@@ -609,13 +612,15 @@ public Vector3D getMovementInput(string arg) {
 
 bool getControllers() {
 	var blocks = new List<IMyShipController>();
-	GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks, cont => cont.CanControlShip && cont.ControlThrusters);
+	GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks);
 	mainController = null;
 
 	usableControllers.Clear();
 
 	for(int i = 0; i < blocks.Count; i++) {
 		if(!blocks[i].ShowInTerminal) continue;
+		if(!blocks[i].CanControlShip) continue;
+		if(!blocks[i].ControlThrusters) continue;
 		if(blocks[i].IsMainCockpit) {
 			mainController = blocks[i];
 		}
