@@ -23,6 +23,11 @@ public const float accelBase = 1.5f;//accel = defaultAccel * g * base^exponent
 // multiplier for dampeners, higher is stronger dampeners
 public const float dampenersModifier = 0.1f;
 
+// true: only main cockpit can be used even if there is no one in the main cockpit
+// false: any cockpits can be used, but if there is someone in the main cockpit, it will only obey the main cockpit
+// no main cockpit: any cockpits can be used
+public const bool onlyMainCockpit = false;
+
 // choose weather you want the script to update once every frame, once every 10 frames, or once every 100 frames
 // should be 1 of:
 // UpdateFrequency.Update1
@@ -581,7 +586,7 @@ public Vector3D getMovementInput(string arg) {
 	}
 
 	// movement controls
-	if(mainController != null && mainController.IsUnderControl) {
+	if(mainController != null && (mainController.IsUnderControl || onlyMainCockpit)) {
 		moveVec = getWorldMoveIndicator(mainController);
 	} else {
 		foreach(IMyShipController cont in controllers) {
@@ -613,6 +618,30 @@ public Vector3D getMovementInput(string arg) {
 bool getControllers() {
 	var blocks = new List<IMyShipController>();
 	GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks);
+	mainController = null;
+
+	usableControllers.Clear();
+
+	for(int i = 0; i < blocks.Count; i++) {
+		if(!blocks[i].ShowInTerminal) continue;
+		if(!blocks[i].CanControlShip) continue;
+		if(!blocks[i].ControlThrusters) continue;
+		if(blocks[i].IsMainCockpit) {
+			mainController = blocks[i];
+		}
+		usableControllers.Add(blocks[i]);
+	}
+
+	if(usableControllers.Count == 0) {
+		Echo("ERROR: no ship controller found");
+		return false;
+	}
+
+	controllers = blocks;
+	return true;
+}
+
+bool getControllers(List<IMyShipController> blocks) {
 	mainController = null;
 
 	usableControllers.Clear();
@@ -781,10 +810,13 @@ public void checkNacelles(bool verbose) {
 		}
 	}
 
-	if((mainController != null ? !mainController.IsMainCockpit : false) || controllers.Count != conts.Count) {
+
+	// if you use the following if statement, it won't lock the non-main cockpit if someone sets the main cockpit, until a recompile or world load :/
+	/*if((mainController != null ? !mainController.IsMainCockpit : false) || controllers.Count != conts.Count) {
 		echoV($"Controller count ({controllers.Count}) is out of whack (current: {conts.Count})", verbose);
-		getControllers();
-	}
+		getControllers(conts);
+	}*/
+	getControllers(conts);
 
 	if(rotorCount != rots.Count) {
 		echoV($"Rotor count ({rotorCount}) is out of whack (current: {rots.Count})", verbose);
