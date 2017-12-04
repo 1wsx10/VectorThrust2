@@ -86,10 +86,12 @@ public const float gravCutoff = 0.1f * 9.81f;
 // 				|         \            /
 // no power 	|-----------------------------------------
 
+// the above pictures are for 'thrustModifierAbove', the same principle applies for 'thrustModifierBelow', except it goes below the 0 line, instead of above the max power line.
 // the clipping value 'thrustModifier' defines how far the thruster can be away from the desired direction of thrust, and have the power still at desired power, otherwise it will be less
-// if 'thrustModifier' is at 1, the thruster will be at desired power when it is at 90 degrees from the direction of travel
-// if 'thrustModifier' is at 0, the thruster will always be slightly less than the desired power due to inaccuracies in the system
-public const double thrustModifier = 0.1;
+// these values can only be between 0 and 1
+public const double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
+public const double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
+
 
 // debugging prints
 public const bool verboseCheck = true;
@@ -339,7 +341,7 @@ public void Main(string argument, UpdateType runType) {
 	for(int i = 0; i < nacelles.Count; i++) {
 		bool foundGroup = false;
 		foreach(List<Nacelle> g in nacelleGroups) {// check each group to see if its lined up
-			if(Math.Abs(Vector3D.Dot(nacelles[i].rotor.wsAxis, g[0].rotor.wsAxis)) > 0.9f) {
+			if(Math.Abs(Vector3D.Dot(nacelles[i].rotor.theBlock.WorldMatrix.Up, g[0].rotor.theBlock.WorldMatrix.Up)) > 0.9f) {
 				g.Add(nacelles[i]);
 				foundGroup = true;
 				break;
@@ -355,7 +357,7 @@ public void Main(string argument, UpdateType runType) {
 	Vector3D asdf = Vector3D.Zero;
 	// 1
 	foreach(List<Nacelle> g in nacelleGroups) {
-		g[0].requiredVec = Vector3D.Reject(requiredVec, g[0].rotor.wsAxis);
+		g[0].requiredVec = Vector3D.Reject(requiredVec, g[0].rotor.theBlock.WorldMatrix.Up);
 		asdf += g[0].requiredVec;
 	}
 	// 2
@@ -962,9 +964,6 @@ void displayNacelles(List<Nacelle> nacelles) {
 		// n.rotor.theBlock.SafetyLock = false;//for testing
 		// n.rotor.theBlock.SafetyLockSpeed = 100;//for testing
 
-		n.rotor.getAxis();
-		// Echo($@"rotor axis: {Math.Round(n.rotor.wsAxis.Length(), 3)}");
-		// Echo($@"rotor axis: {n.rotor.wsAxis.Length()}");
 		// Echo($@"deltaX: {Vector3D.Round(oldTranslation - km.Translation.Translation, 0)}");
 
 		Echo("Thrusters:");
@@ -976,7 +975,7 @@ void displayNacelles(List<Nacelle> nacelles) {
 	}
 }
 
-public string progressBar(double val) {
+public static string progressBar(double val) {
 	char[] bar = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 	for(int i = 0; i < 10; i++) {
 		if(i <= val * 10) {
@@ -1045,8 +1044,7 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		// errStr += $"\nall thrusters: {thrusters.Count}";
 		totalEffectiveThrust = (float)calcTotalEffectiveThrust(activeThrusters);
 
-		rotor.getAxis();
-
+		double angleCos = 0;
 
 		// maybe lerp this in the future
 		if(requiredVec.LengthSquared() < gravCutoff*gravCutoff) {// Zero G
@@ -1057,17 +1055,36 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 				direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
 			}
 			if(program.shipVelocity.LengthSquared() > direction.LengthSquared()) {
-				rotor.setFromVec(requiredVec - program.shipVelocity);
+				angleCos = rotor.setFromVec(requiredVec - program.shipVelocity);
 			} else {
-				rotor.setFromVec(direction + requiredVec);
+				angleCos = rotor.setFromVec(direction + requiredVec);
 			}
 			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
 		} else {// In Gravity
-			rotor.setFromVec(requiredVec);
+			angleCos = rotor.setFromVec(requiredVec);
 			// rotor.setFromVecOld(requiredVec);
 		}
 		errStr += rotor.errStr;
 		rotor.errStr = "";
+
+
+		// the clipping value 'thrustModifier' defines how far the rotor can be away from the desired direction of thrust, and have the power still at max
+		// if 'thrustModifier' is at 1, the thruster will be at full desired power when it is at 90 degrees from the direction of travel
+		// if 'thrustModifier' is at 0, the thruster will only be at full desired power when it is exactly at the direction of travel, (it's never exactly in-line)
+		// double thrustOffset = (angleCos + 1) / (1 + (1 - Program.thrustModifierAbove));//put it in some graphing calculator software where 'angleCos' is cos(x) and adjust the thrustModifier value between 0 and 1, then you can visualise it
+		double abo = Program.thrustModifierAbove;
+		double bel = Program.thrustModifierBelow;
+		if(abo > 1) { abo = 1; }
+		if(abo < 0) { abo = 0; }
+		if(bel > 1) { bel = 1; }
+		if(bel < 0) { bel = 0; }
+		double thrustOffset = ((((angleCos + 1) * (1 + bel)) / 2) - bel) * (((angleCos + 1) * (1 + abo)) / 2);//put it in some graphing calculator software where 'angleCos' is cos(x) and adjust the thrustModifier values between 0 and 1, then you can visualise it
+		// let me know if you come up with a simpler equation that modifies a cos wave to the same effect... its 1am and i don't remember maths that well XD
+		if(thrustOffset > 1) {
+			thrustOffset = 1;
+		} else if(thrustOffset < 0) {
+			thrustOffset = 0;
+		}
 
 		//set the thrust for each engine
 		for(int i = 0; i < activeThrusters.Count; i++) {
@@ -1077,7 +1094,8 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 				activeThrusters[i].setThrust(0);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_Off");
 			} else {
-				activeThrusters[i].setThrust(requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalEffectiveThrust);
+				errStr += Program.progressBar(thrustOffset);
+				activeThrusters[i].setThrust(thrustOffset * requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalEffectiveThrust);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_On");
 			}
 		}
@@ -1257,22 +1275,8 @@ public class Thruster {
 
 	// sets the thrust in newtons (N)
 	// thrustVec is in worldspace, who'se length is the desired thrust
-	// if thrustVec is not in-line with the thrusters direction of thrust, the value will be modified such that it is less
-	// the clipping value 'thrustModifier' defines how far thrustVec can be away from the direction of thrust, and have the power still at max
-	// if 'thrustModifier' is at 1, the thruster will be at full power when it is at 90 degrees from the direction of travel
 	public void setThrust(Vector3D thrustVec) {
-		Vector3D backward = theBlock.GridThrustDirection * -1;
-		var blockMatrix = theBlock.WorldMatrix;
-		Vector3D thrustVecLocal = Vector3D.TransformNormal(thrustVec, MatrixD.Invert(blockMatrix));
-
-		double dot = Vector3D.Dot(thrustVecLocal, backward);
-		double Length = thrustVecLocal.Length() /* * backward.Length()*/;// backward.Length() is always 1, so no need to calculate it
-		double thrustOffset = (dot/Length + 1) / (1 + (1 - Program.thrustModifier));//put it in some graphing calculator software where 'dot/Length' is cos(x) and adjust the thrustModifier value between 0 and 1, then you can visualise it
-		// errStr += progressBar(thrustOffset);
-		if(false) {
-			return;//TODO: reminder to fix the following:
-		}
-		double thrust = thrustVec.Length()/* * thrustOffset*/;//TODO: correct for the rotor being out of alignment then re-enable this
+		double thrust = thrustVec.Length();
 		if(thrust > theBlock.MaxThrust) {
 			thrust = theBlock.MaxThrust;
 		} else if(thrust < 0) {
@@ -1311,8 +1315,6 @@ public class Rotor {
 	public IMyMotorStator theBlock;
 	// don't want IMyMotorBase, that includes wheels
 
-	public Vector3D wsAxis;// axis it rotates around in worldspace
-
 	// Depreciated, this is for the old setFromVec
 	public float offset = 0;// radians
 
@@ -1322,22 +1324,12 @@ public class Rotor {
 
 	public Rotor(IMyMotorStator rotor) {
 		this.theBlock = rotor;
-		getAxis();
 	}
 
 	public void setPointDir(Vector3D dir) {
 		// MatrixD inv = MatrixD.Invert(theBlock.Top.WorldMatrix);
 		// direction = Vector3D.TransformNormal(dir, inv);
 		this.direction = dir;
-	}
-
-	// gets the rotor axis (worldmatrix.up)
-	public void getAxis() {
-		this.wsAxis = theBlock.WorldMatrix.Up;//this should be normalized already
-		if(Math.Round(this.wsAxis.LengthSquared(), 2) != 1.00) {
-			errStr += $"\nERROR (getAxis()):\n\trotor up isn't normalized\n\t{Math.Round(this.wsAxis.Length(), 2)}";
-			this.wsAxis.Normalize();
-		}
 	}
 
 	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
@@ -1361,17 +1353,19 @@ public class Rotor {
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
-	public void setFromVec(Vector3D desiredVec) {
-		desiredVec = Vector3D.Reject(desiredVec, wsAxis);
+	public double setFromVec(Vector3D desiredVec) {
+		desiredVec = Vector3D.Reject(desiredVec, theBlock.WorldMatrix.Up);
 		desiredVec.Normalize();
 		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
-		PointRotorAtVector(theBlock, desiredVec, currentDir);
+		PointRotorAtVector(theBlock, desiredVec, currentDir/*theBlock.Top.WorldMatrix.Forward*/);
+
+		return angleBetweenCos(currentDir, desiredVec, desiredVec.Length());
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
 	public void setFromVecOld(Vector3D desiredVec) {
-		desiredVec = Vector3D.Reject(desiredVec, wsAxis);
+		desiredVec = Vector3D.Reject(desiredVec, theBlock.WorldMatrix.Up);
 		if(Vector3D.IsZero(desiredVec) || !desiredVec.IsValid()) {
 			errStr += $"\nERROR (setFromVec()):\n\tdesiredVec is invalid\n\t{desiredVec}";
 			return;
@@ -1395,6 +1389,15 @@ public class Rotor {
 		double dot = Vector3D.Dot(a, b);
 		double Length = a.Length() * b.Length();
 		return dot/Length;
+	}
+
+	// gets cos(angle between 2 vectors)
+	// cos returns a number between 0 and 1
+	// use Acos to get the angle
+	// doesn't calculate length because thats expensive
+	public double angleBetweenCos(Vector3D a, Vector3D b, double len) {
+		double dot = Vector3D.Dot(a, b);
+		return dot/len;
 	}
 
 	// set the angle to be between 0 and 2pi radians (0 and 360 degrees)

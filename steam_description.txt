@@ -1,0 +1,49 @@
+[h1][b] Vector Thrust [/b][/h1]
+[b] put your thrusters on rotors! [/b]
+
+if you have [url=http://steamcommunity.com/sharedfiles/filedetails/?id=655948251&searchtext=control+module] Control Module [/url] installed in the world, it will just work. [b] THIS IS OPTIONAL [/b]
+
+[url=https://github.com/1wsx10/VectorThrust2] For those who know whwat Github is. [/url]
+
+[h1] MAIN SETUP [/h1]
+1. Load the script into a programmable block (click 'Edit', not 'Custom Data', then 'Browse Workshop'), then click 'Check Code' and 'Remember and Exit'
+2. [strike] run the programmable block [/strike] it should be already running. if its on standby mode, you will have to pass the %standby argument
+3. setup your buttons.. either use 'Control Module' by DIGI or make your cockpit buttons with various actions. you will have to use the vanilla method for the standby action.
+4. get in and hit the jetpack button!
+
+[h1] VANILLA BUTTONS SETUP [/h1]
+1. get in your cockpit, press G
+2. drag the programmable block to the bar and select "RUN"
+3. copy & paste the code for your controls. you will need:
+[code]
+%dampeners
+%jetpack
+%standby
+%raiseAccel
+%lowerAccel
+%resetAccel [/code]
+
+standby completely stops the script, till you press the button again (and also safely turns off thrusters & rotors) [b] please use it in multiplayer [/b]
+the last 3 control your "Target Accel" value and are optional
+
+[h1] CONTROL MODULE [/h1]
+ [b] suit jetpack key [/b]:		engines on/off
+ [b] inertia dampeners key [/b]:	inertia dampenerse on/off
+ [b] + [/b]:			increase target acceleration
+ [b] - [/b]:			decrease target acceleration
+ [b] 0 [/b]:			reset target acceleration
+
+there is currently no binding for standby, so you will have to set that up with the vanilla method
+
+[h1] INFO PANEL SETUP [/h1]
+[b] while this is optional, i highly recommend it [/b]
+1. place a text panel
+2. put %VectorLCD in the name
+
+[h1] BUGS [/h1]
+unfortunately there seems to be a physics bug in space engineers at the moment which causes thrusters on rotors to spaz out in some situations. i have reproduced it on a ship without the script whatsoever, so its not my script doing it
+
+[b] workaround [/b]
+so far, i have narrowed it down to the thrusters being in-line with the centre of mass... that's pretty ironic because this update is supposed to remove that requirement.
+
+just try to keep the rotors in-line with the centre of mass and it should be fine
