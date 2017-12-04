@@ -1078,8 +1078,9 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		if(abo < 0) { abo = 0; }
 		if(bel > 1) { bel = 1; }
 		if(bel < 0) { bel = 0; }
-		double thrustOffset = ((((angleCos + 1) * (1 + bel)) / 2) - bel) * (((angleCos + 1) * (1 + abo)) / 2);//put it in some graphing calculator software where 'angleCos' is cos(x) and adjust the thrustModifier values between 0 and 1, then you can visualise it
-		// let me know if you come up with a simpler equation that modifies a cos wave to the same effect... its 1am and i don't remember maths that well XD
+		// put it in some graphing calculator software where 'angleCos' is cos(x) and adjust the thrustModifier values between 0 and 1, then you can visualise it
+		double thrustOffset = ((((angleCos + 1) * (1 + bel)) / 2) - bel) * (((angleCos + 1) * (1 + abo)) / 2);// the other one is simpler, but this one performs better
+		// double thrustOffset = (angleCos * (1 + abo) * (1 + bel) + abo - bel + 1) / 2;
 		if(thrustOffset > 1) {
 			thrustOffset = 1;
 		} else if(thrustOffset < 0) {
