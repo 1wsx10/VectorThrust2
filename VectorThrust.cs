@@ -18,7 +18,7 @@ public const float defaultAccel = 1f;//this is the default target acceleration y
 
 public const float accelBase = 1.5f;//accel = defaultAccel * g * base^exponent
 // your +, - and 0 keys increment, decrement and reset the exponent respectively
-// this means increasing the base will increase the amount your + and - change target cceleration
+// this means increasing the base will increase the amount your + and - change target acceleration
 
 // multiplier for dampeners, higher is stronger dampeners
 public const float dampenersModifier = 0.1f;
@@ -94,22 +94,17 @@ public const double thrustModifierBelow = 0.1;// how close the rotor has to be t
 
 
 // debugging prints
-public const bool verboseCheck = true;
+public const bool debug = true;
 
 public Program() {
 	Echo("Just Compiled");
 	programCounter = 0;
 	gotNacellesCount = 0;
 	updateNacellesCount = 0;
-	Runtime.UpdateFrequency = update_frequency;
+	Runtime.UpdateFrequency = UpdateFrequency.Once;
 }
 public void Save() {}
 
-/*TODO: SYSTEM FOR COUNTERING NORMAL THRUSTERS IN GRAVITY
-take last update's velocity minus the current velocity times the timestep to get the acceleration then multiply by the mass of the ship ( force = mass * acceleration )
-subtract desiredvec acceleration (or better yet, keep a real running score of each thrusters acceleration)
-use this with PID to counter normal thrusters force
-*/
 
 //at 60 fps this will last for 9000+ hrs before going negative
 public long programCounter;
@@ -137,6 +132,8 @@ public void Main(string argument, UpdateType runType) {
 		break;
 	}
 	write(spinner);
+
+	// write(runType.ToString());
 
 	UpdateType valid_argument_updates = UpdateType.None;
 	valid_argument_updates |= UpdateType.Terminal;
@@ -176,8 +173,9 @@ public void Main(string argument, UpdateType runType) {
 		}
 		Runtime.UpdateFrequency = UpdateFrequency.None;
 	// coming back from standby mode
-	} else if((anyArg || runType == UpdateType.Terminal) && standby) {
+	} else if((anyArg || runType == UpdateType.Terminal) && standby || comeFromStandby) {
 		standby = false;
+		comeFromStandby = false;
 		foreach(Nacelle n in nacelles) {
 			n.rotor.theBlock.ApplyAction("OnOff_On");
 			foreach(Thruster t in n.thrusters) {
@@ -186,7 +184,7 @@ public void Main(string argument, UpdateType runType) {
 				}
 			}
 		}
-		Runtime.UpdateFrequency = UpdateFrequency.Update1;
+		Runtime.UpdateFrequency = update_frequency;
 	}
 
 	if(argument.Contains(resetArg.ToLower()) || controllers.Count == 0 /*|| timer == null*/ || justCompiled) {
@@ -195,7 +193,7 @@ public void Main(string argument, UpdateType runType) {
 		}
 	}
 
-	checkNacelles(verboseCheck);
+	checkNacelles(debug);
 	if(updateNacelles) {
 		nacelles.Clear();
 		nacelles = getNacelles();
@@ -213,29 +211,20 @@ public void Main(string argument, UpdateType runType) {
 	}
 
 	if(justCompiled) {
-		// Runtime.UpdateFrequency = UpdateFrequency.None;
+		justCompiled = false;
+		Runtime.UpdateFrequency = UpdateFrequency.Once;
 		if(Storage == "" || !startInStandby) {
 			Storage = "Don't Start Automatically";
-			// Runtime.UpdateFrequency = update_frequency;
 			// run normally
+			comeFromStandby = true;
+			return;
 		} else {
-			Runtime.UpdateFrequency = UpdateFrequency.Once;
 
 			// go into standby mode
 			goToStandby = true;
-			justCompiled = false;
 			return;
 		}
-		foreach(Nacelle n in nacelles) {
-			n.rotor.theBlock.ApplyAction("OnOff_On");
-			foreach(Thruster t in n.thrusters) {
-				if(t.isOn) {
-					t.theBlock.ApplyAction("OnOff_On");
-				}
-			}
-		}
 	}
-	justCompiled = false;
 
 	// ========== END OF STARTUP ==========
 
@@ -429,6 +418,7 @@ public Vector3D shipVelocity = Vector3D.Zero;
 
 public bool justCompiled = true;
 public bool goToStandby = false;
+public bool comeFromStandby = false;
 
 public string deBug = "";
 
@@ -895,7 +885,7 @@ List<Nacelle> getNacelles() {
 	// 1 call to GTS
 	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyThrust) || (block is IMyMotorStator));
 
-	echoV("Getting Blocks for thrusters & rotors", verboseCheck);
+	echoV("Getting Blocks for thrusters & rotors", debug);
 	// get the blocks we care about
 	var rotors = new List<IMyMotorStator>();
 	normalThrusters.Clear();
@@ -913,7 +903,7 @@ List<Nacelle> getNacelles() {
 	blocks.Clear();
 
 
-	echoV("Getting Rotors", verboseCheck);
+	echoV("Getting Rotors", debug);
 	// make nacelles out of all valid rotors
 	rotorTopCount = 0;
 	foreach(IMyMotorStator current in rotors) {
@@ -935,7 +925,7 @@ List<Nacelle> getNacelles() {
 		nacelles.Add(new Nacelle(rotor, this));
 	}
 
-	echoV("Getting Thrusters", verboseCheck);
+	echoV("Getting Thrusters", debug);
 	// add all thrusters to their corrisponding nacelle and remove nacelles that have none
 	for(int i = nacelles.Count-1; i >= 0; i--) {
 		for(int j = normalThrusters.Count-1; j >= 0; j--) {
@@ -1035,8 +1025,8 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		this.availableThrusters = new List<Thruster>();
 		this.activeThrusters = new List<Thruster>();
 		errStr = "";
-	}
 
+}
 	// final calculations and setting physical components
 	public void go(bool jetpack) {
 		errStr = "";
@@ -1046,8 +1036,13 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 
 		double angleCos = 0;
 
+		// TODO: fix this so that it cuts-off when the dampeners are on
+		// TODO: fix the thruster on/off code
+		// TODO: make the rotor and thruster class extensions/inheritence rather than contianers
+
 		// maybe lerp this in the future
 		if(requiredVec.LengthSquared() < gravCutoff*gravCutoff) {// Zero G
+			errStr += "not much thrust";
 			Vector3D direction = Vector3D.Zero;
 			if(program.mainController != null) {
 				direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
@@ -1061,6 +1056,7 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 			}
 			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
 		} else {// In Gravity
+			errStr += "lots of thrust";
 			angleCos = rotor.setFromVec(requiredVec);
 			// rotor.setFromVecOld(requiredVec);
 		}
