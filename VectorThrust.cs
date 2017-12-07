@@ -1,3 +1,6 @@
+// ALWAYS CHECK FOR UPDATES
+// to update, simply load it from the workshop tab again (no need to actually go to the workshop page)
+
 // weather or not dampeners or thrusters are on when you start the script
 public bool dampeners = true;
 public bool jetpack = false;
@@ -113,7 +116,7 @@ public long updateNacellesCount;
 
 public void Main(string argument, UpdateType runType) {
 	// ========== STARTUP ==========
-	writeBool = false;
+	globalAppend = false;
 
 	Echo("Running "+ programCounter++);
 	String spinner = "";
@@ -399,19 +402,19 @@ public bool dampenersIsPressed = false;
 public bool plusIsPressed = false;
 public bool minusIsPressed = false;
 
-private IMyTextPanel screen;
-public bool writeBool = false;
+public bool globalAppend = false;
 
-// public IMyShipController controller;
+public IMyShipController mainController = null;
 public List<IMyShipController> controllers = new List<IMyShipController>();
 public List<IMyShipController> usableControllers = new List<IMyShipController>();
-public IMyShipController mainController = null;
-// public IMyTimerBlock timer = null;
 public List<Nacelle> nacelles = new List<Nacelle>();
 public List<IMyThrust> normalThrusters = new List<IMyThrust>();
+public List<IMyTextPanel> screens = new List<IMyTextPanel>();
+public List<IMyTextPanel> usableScreens = new List<IMyTextPanel>();
 public int rotorCount = 0;
 public int rotorTopCount = 0;
 public int thrusterCount = 0;
+public int screenCount = 0;
 public bool updateNacelles = false;
 public bool standby = false;
 public Vector3D shipVelocity = Vector3D.Zero;
@@ -460,39 +463,30 @@ public bool isAlive(IMyTerminalBlock block) {
 	return block.CubeGrid.GetCubeBlock(block.Position)?.FatBlock == block;
 }
 
-public bool write(string str) {
-	str += "\n";
-	if(screen != null) {
-		if(!isAlive(screen)) {
-			screen = null;
-			return write(str);//tail call, no effect on performance
-		}
-		screen.WritePublicText(str, writeBool);
-		screen.ShowPublicTextOnScreen();
-		writeBool = true;
-	} else {
-		var blocks = new List<IMyTerminalBlock>();
-		GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(blocks);
-		if(blocks.Count == 0) {
-			Echo("No screens available");
-			return false;
-		}
-		var temp = (IMyTextPanel)blocks[0];
-		bool found = false;
-		for(int i = 0; i < blocks.Count; i++) {
-			if(blocks[i].CustomName.ToLower().IndexOf(LCDName.ToLower()) != -1) {
-				temp = (IMyTextPanel)blocks[i];
-				found = true;
-			}
-		}
-		if(!found) {
-			Echo("No screen to write text on");
-			return false;
-		}
-		screen = temp;
-		screen.WritePublicText(str);
+public void getScreens(List<IMyTextPanel> screens) {
+	this.screens = screens;
+	usableScreens.Clear();
+	foreach(IMyTextPanel screen in screens) {
+		if(!screen.IsWorking) continue;
+		if(!screen.CustomName.ToLower().Contains(LCDName.ToLower())) continue;
+		usableScreens.Add(screen);
 	}
-	return true;
+	screenCount = screens.Count;
+}
+
+public void write(string str) {
+	if(usableScreens.Count > 0) {
+		str += "\n";
+		foreach(IMyTextPanel screen in usableScreens) {
+			screen.WritePublicText(str, globalAppend);
+			screen.ShowPublicTextOnScreen();
+		}
+		globalAppend = true;
+	} else {
+		if(globalAppend) return;
+		Echo("No screens available");
+		globalAppend = true;
+	}
 }
 
 double getAcceleration(double gravity) {
@@ -785,10 +779,11 @@ public void checkNacelles(bool verbose) {
 	var blocks = new List<IMyTerminalBlock>();
 	echoV("Checking Nacelles...", verbose);
 
-	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyShipController || block is IMyThrust || block is IMyMotorStator));
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyShipController || block is IMyThrust || block is IMyMotorStator || block is IMyTextPanel));
 	List<IMyShipController> conts = new List<IMyShipController>();
 	List<IMyMotorStator> rots = new List<IMyMotorStator>();
 	List<IMyThrust> thrs = new List<IMyThrust>();
+	List<IMyTextPanel> txts = new List<IMyTextPanel>();
 
 	for(int i = 0; i < blocks.Count; i++) {
 		if(blocks[i] is IMyShipController) {
@@ -800,15 +795,28 @@ public void checkNacelles(bool verbose) {
 		if(blocks[i] is IMyThrust) {
 			thrs.Add((IMyThrust)blocks[i]);
 		}
+		if(blocks[i] is IMyTextPanel) {
+			txts.Add((IMyTextPanel)blocks[i]);
+		}
 	}
 
 
 	// if you use the following if statement, it won't lock the non-main cockpit if someone sets the main cockpit, until a recompile or world load :/
-	/*if((mainController != null ? !mainController.IsMainCockpit : false) || controllers.Count != conts.Count) {
+	if(/*(mainController != null ? !mainController.IsMainCockpit : false) || */controllers.Count != conts.Count) {
 		echoV($"Controller count ({controllers.Count}) is out of whack (current: {conts.Count})", verbose);
 		getControllers(conts);
-	}*/
-	getControllers(conts);
+	}
+
+	if(screenCount != txts.Count) {
+		echoV($"Screen count ({screenCount}) is out of whack (current: {txts.Count})", verbose);
+		getScreens(txts);
+	} else {
+		foreach(IMyTextPanel screen in txts) {
+			if(!screen.IsWorking) continue;
+			if(!screen.CustomName.ToLower().Contains(LCDName.ToLower())) continue;
+			getScreens(txts);
+		}
+	}
 
 	if(rotorCount != rots.Count) {
 		echoV($"Rotor count ({rotorCount}) is out of whack (current: {rots.Count})", verbose);
