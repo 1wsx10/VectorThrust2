@@ -272,9 +272,9 @@ public void Main(string argument, UpdateType runType) {
 		if(desiredVec != Vector3D.Zero) {
 			// cancel backwards movement
 			if(Vector3D.Dot(desiredVec, shipVelocity) < 0)//if you want to go oppisite to velocity
-				dampVec = project(shipVelocity, desiredVec);
+				dampVec = shipVelocity.project(desiredVec);
 			// cancel sideways movement
-			dampVec += Vector3D.Reject(shipVelocity, desiredVec);
+			dampVec += shipVelocity.reject(desiredVec);
 		} else {
 			// no desiredVec, just use shipVelocity
 			dampVec = shipVelocity;
@@ -349,7 +349,7 @@ public void Main(string argument, UpdateType runType) {
 	Vector3D asdf = Vector3D.Zero;
 	// 1
 	foreach(List<Nacelle> g in nacelleGroups) {
-		g[0].requiredVec = Vector3D.Reject(requiredVec, g[0].rotor.theBlock.WorldMatrix.Up);
+		g[0].requiredVec = requiredVec.reject(g[0].rotor.theBlock.WorldMatrix.Up);
 		asdf += g[0].requiredVec;
 	}
 	// 2
@@ -459,10 +459,6 @@ public IMyTimerBlock getTimer() {
 	}
 }
 
-public bool isAlive(IMyTerminalBlock block) {
-	return block.CubeGrid.GetCubeBlock(block.Position)?.FatBlock == block;
-}
-
 public void getScreens(List<IMyTextPanel> screens) {
 	this.screens = screens;
 	usableScreens.Clear();
@@ -491,18 +487,6 @@ public void write(string str) {
 
 double getAcceleration(double gravity) {
 	return Math.Pow(accelBase, accelExponent) * gravity * defaultAccel;
-}
-
-//projects a onto b
-public Vector3D project(Vector3D a, Vector3D b) {
-	double aDotB = Vector3D.Dot(a, b);
-	double bDotB = Vector3D.Dot(b, b);
-	return b * aDotB / bDotB;
-}
-
-// get movement and turn it into worldspace
-public Vector3D getWorldMoveIndicator(IMyShipController cont) {
-	return Vector3D.TransformNormal(cont.MoveIndicator, cont.WorldMatrix);
 }
 
 public Vector3D getMovementInput(string arg) {
@@ -573,11 +557,11 @@ public Vector3D getMovementInput(string arg) {
 
 	// movement controls
 	if(mainController != null && (mainController.IsUnderControl || onlyMainCockpit)) {
-		moveVec = getWorldMoveIndicator(mainController);
+		moveVec = mainController.getWorldMoveIndicator();
 	} else {
 		foreach(IMyShipController cont in controllers) {
 			if(cont.IsUnderControl) {
-				moveVec += getWorldMoveIndicator(cont);
+				moveVec += cont.getWorldMoveIndicator();
 			}
 		}
 	}
@@ -986,21 +970,6 @@ void displayNacelles(List<Nacelle> nacelles) {
 	}
 }
 
-public static string progressBar(double val) {
-	char[] bar = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
-	for(int i = 0; i < 10; i++) {
-		if(i <= val * 10) {
-			bar[i] = '|';
-		}
-	}
-	var str_build = new StringBuilder("[");
-	for(int i = 0; i < 10; i++) {
-		str_build.Append(bar[i]);
-	}
-	str_build.Append("]");
-	return str_build.ToString();
-}
-
 public class Nacelle {
 	public String errStr;
 	public Program program;
@@ -1128,7 +1097,7 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 				activeThrusters[i].setThrust(0);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_Off");
 			} else {
-				errStr += Program.progressBar(thrustOffset);
+				errStr += thrustOffset.progressBar();
 				Vector3D thrust = thrustOffset * requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalEffectiveThrust;
 				activeThrusters[i].setThrust(thrust);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_On");
@@ -1389,7 +1358,7 @@ public class Rotor {
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
 	public double setFromVec(Vector3D desiredVec, float multiplier) {
-		desiredVec = Vector3D.Reject(desiredVec, theBlock.WorldMatrix.Up);
+		desiredVec = desiredVec.reject(theBlock.WorldMatrix.Up);
 		desiredVec.Normalize();
 		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
 		PointRotorAtVector(theBlock, desiredVec, currentDir/*theBlock.Top.WorldMatrix.Forward*/, multiplier);
@@ -1404,7 +1373,7 @@ public class Rotor {
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
 	public void setFromVecOld(Vector3D desiredVec) {
-		desiredVec = Vector3D.Reject(desiredVec, theBlock.WorldMatrix.Up);
+		desiredVec = desiredVec.reject(theBlock.WorldMatrix.Up);
 		if(Vector3D.IsZero(desiredVec) || !desiredVec.IsValid()) {
 			errStr += $"\nERROR (setFromVec()):\n\tdesiredVec is invalid\n\t{desiredVec}";
 			return;
@@ -1480,6 +1449,50 @@ public class Rotor {
 }
 // example for extension method:
 public static class CustomProgramExtensions {
-   public static void AddFunction(this IMyTerminalBlock block) {
+	public static void AddFunction(this IMyTerminalBlock block) {
 
-   }
+	}
+
+	public static bool IsAlive(this IMyTerminalBlock block) {
+		return block.CubeGrid.GetCubeBlock(block.Position)?.FatBlock == block;
+	}
+
+	// projects a onto b
+	public static Vector3D project(this Vector3D a, Vector3D b) {
+		double aDotB = Vector3D.Dot(a, b);
+		double bDotB = Vector3D.Dot(b, b);
+		return b * aDotB / bDotB;
+	}
+
+	public static Vector3D reject(this Vector3D a, Vector3D b) {
+		return Vector3D.Reject(a, b);
+	}
+
+	// get movement and turn it into worldspace
+	public static Vector3D getWorldMoveIndicator(this IMyShipController cont) {
+		return Vector3D.TransformNormal(cont.MoveIndicator, cont.WorldMatrix);
+	}
+
+
+	public static string progressBar(this double val) {
+		char[] bar = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+		for(int i = 0; i < 10; i++) {
+			if(i <= val * 10) {
+				bar[i] = '|';
+			}
+		}
+		var str_build = new StringBuilder("[");
+		for(int i = 0; i < 10; i++) {
+			str_build.Append(bar[i]);
+		}
+		str_build.Append("]");
+		return str_build.ToString();
+	}
+
+	public static string progressBar(this float val) {
+		return ((double)val).progressBar();
+	}
+
+	public static string progressBar(this Vector3D val) {
+		return val.Length().progressBar();
+	}
