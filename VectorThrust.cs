@@ -371,10 +371,10 @@ public void Main(string argument, UpdateType runType) {
 		for(int i = 0; i < g.Count; i++) {
 			g[i].requiredVec = req;
 			// Echo(g[i].errStr);
-			g[i].go(jetpack, shipMass);
+			g[i].go(jetpack, dampeners, shipMass);
 			total += req.Length();
 			// write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
-			// write(g[i].errStr);
+			write(g[i].errStr);
 			// foreach(Thruster t in g[i].activeThrusters) {
 			// 	// Echo($"Thruster: {t.theBlock.CustomName}\n{t.errStr}");
 			// }
@@ -1019,6 +1019,8 @@ public class Nacelle {
 	public bool needsUpdate = false;
 	public Vector3D currDir = Vector3D.Zero;
 
+	public bool thrustOn = false;
+
 
 
 /*
@@ -1046,10 +1048,10 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		this.availableThrusters = new List<Thruster>();
 		this.activeThrusters = new List<Thruster>();
 		errStr = "";
+	}
 
-}
 	// final calculations and setting physical components
-	public void go(bool jetpack, float shipMass) {
+	public void go(bool jetpack, bool dampeners, float shipMass) {
 		errStr = "";
 		// errStr += $"\nactive thrusters: {activeThrusters.Count}";
 		// errStr += $"\nall thrusters: {thrusters.Count}";
@@ -1061,26 +1063,40 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		// TODO: fix the thruster on/off code
 		// TODO: make the rotor and thruster class extensions/inheritence rather than contianers
 
+		// hysteresis
+		if(requiredVec.Length() > gravCutoff * shipMass) {
+			thrustOn = true;
+		}
+		if(requiredVec.Length() < 0.01 * gravCutoff * shipMass) {
+			thrustOn = false;
+		}
+
+		errStr += $"\nangle: {thrustOn} \n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass), 2)}";
+
 		// maybe lerp this in the future
-		if(requiredVec.LengthSquared() < gravCutoff*gravCutoff) {// Zero G
-			errStr += "not much thrust";
+		if(!thrustOn) {// Zero G
+			errStr += "\nnot much thrust";
 			Vector3D direction = Vector3D.Zero;
 			if(program.mainController != null) {
-				direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+				direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration * shipMass / 1.414f;
 			} else {
-				direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+				direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration * shipMass / 1.414f;
 			}
-			if(program.shipVelocity.LengthSquared() > direction.LengthSquared()) {
-				angleCos = rotor.setFromVec(requiredVec - program.shipVelocity);
-			} else {
+			if(dampeners) {
 				angleCos = rotor.setFromVec(direction + requiredVec);
+			} else {
+				if(program.shipVelocity.LengthSquared() > direction.LengthSquared()) {
+					angleCos = rotor.setFromVec(requiredVec - program.shipVelocity);
+				} else {
+					angleCos = rotor.setFromVec(direction + requiredVec);
+				}
 			}
 			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
 		} else {// In Gravity
-			errStr += "lots of thrust";
+			errStr += "\nlots of thrust";
 			angleCos = rotor.setFromVec(requiredVec);
 			// rotor.setFromVecOld(requiredVec);
-		// }
+		}
 		errStr += "\n" + rotor.errStr;
 		rotor.errStr = "";
 
@@ -1108,12 +1124,13 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		for(int i = 0; i < activeThrusters.Count; i++) {
 			errStr += "\n" + activeThrusters[i].errStr;
 			activeThrusters[i].errStr = "";
-			if(!jetpack) {
+			if(!jetpack || !thrustOn) {
 				activeThrusters[i].setThrust(0);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_Off");
 			} else {
 				errStr += Program.progressBar(thrustOffset);
-				activeThrusters[i].setThrust(thrustOffset * requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalEffectiveThrust);
+				Vector3D thrust = thrustOffset * requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalEffectiveThrust;
+				activeThrusters[i].setThrust(thrust);
 				activeThrusters[i].theBlock.ApplyAction("OnOff_On");
 			}
 		}
@@ -1380,6 +1397,10 @@ public class Rotor {
 		return angleBetweenCos(currentDir, desiredVec, desiredVec.Length());
 	}
 
+	public double setFromVec(Vector3D desiredVec) {
+		return setFromVec(desiredVec, 1);
+	}
+
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
 	public void setFromVecOld(Vector3D desiredVec) {
@@ -1455,3 +1476,10 @@ public class Rotor {
 	}
 
 }
+
+}
+// example for extension method:
+public static class CustomProgramExtensions {
+   public static void AddFunction(this IMyTerminalBlock block) {
+
+   }
