@@ -315,12 +315,7 @@ public void Main(string argument, UpdateType runType) {
 	// update thrusters on/off and re-check nacelles direction
 	foreach(Nacelle n in nacelles) {
 		if(!n.validateThrusters(jetpack)) {
-			n.needsUpdate = true;
-		}
-		if(n.needsUpdate) {
-			updateNacellesCount++;
 			n.detectThrustDirection();
-			n.needsUpdate = false;
 		}
 		// Echo($"thrusters: {n.thrusters.Count}");
 		// Echo($"avaliable: {n.availableThrusters.Count}");
@@ -976,46 +971,26 @@ public class Nacelle {
 
 	// physical parts
 	public Rotor rotor;
-	public List<Thruster> thrusters;// all the thrusters
-	public List<Thruster> availableThrusters;// <= thrusters: the ones the user chooses to be used (ShowInTerminal)
-	public List<Thruster> activeThrusters;// <= activeThrusters: the ones that are facing the direction that produces the most thrust (only recalculated if available thrusters changes)
+	public HashSet<Thruster> thrusters;// all the thrusters
+	public HashSet<Thruster> availableThrusters;// <= thrusters: the ones the user chooses to be used (ShowInTerminal)
+	public HashSet<Thruster> activeThrusters;// <= activeThrusters: the ones that are facing the direction that produces the most thrust (only recalculated if available thrusters changes)
 
 	public bool oldJetpack = true;
 	public Vector3D requiredVec = Vector3D.Zero;
 
 	public float totalEffectiveThrust = 0;
 	public int detectThrustCounter = 0;
-	public bool needsUpdate = false;
 	public Vector3D currDir = Vector3D.Zero;
 
 	public bool thrustOn = false;
-
-
-
-/*
-
-TODO: calculate CoM for each nacelle... to be used for Centre_of_Thrust
-
-(thrust is applied at centre of mass because realism)
-
-IMyEntity.WorldVolume.Center
-IMyEntity.WorldMatrix.Down
-IMyThrust.MaxEffectiveThrust
-GridTerminalSystem.GetBlocksOfType(blocks, (b) => b.CubeGrid == YourGrid)
-
-
-CoM_X = (m1*x1 + m2*x2)/(m1 + m2)
-where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
-
-*/
 
 	public Nacelle() {}// don't use this if it is possible for the instance to be kept
 	public Nacelle(Rotor rotor, Program program) {
 		this.program = program;
 		this.rotor = rotor;
-		this.thrusters = new List<Thruster>();
-		this.availableThrusters = new List<Thruster>();
-		this.activeThrusters = new List<Thruster>();
+		this.thrusters = new HashSet<Thruster>();
+		this.availableThrusters = new HashSet<Thruster>();
+		this.activeThrusters = new HashSet<Thruster>();
 		errStr = "";
 	}
 
@@ -1030,43 +1005,46 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 
 		// TODO: fix this so that it cuts-off when the dampeners are on
 		// TODO: fix the thruster on/off code
-		// TODO: make the rotor and thruster class extensions/inheritence rather than contianers
 
 		// hysteresis
 		if(requiredVec.Length() > gravCutoff * shipMass) {
 			thrustOn = true;
 		}
-		if(requiredVec.Length() < 0.01 * gravCutoff * shipMass) {
+		if(requiredVec.Length() < 0.1 * gravCutoff * shipMass) {
 			thrustOn = false;
 		}
 
-		errStr += $"\nangle: {thrustOn} \n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass), 2)}";
+		errStr += $"thrustOn: {thrustOn} \n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass), 2)}\n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass*0.01), 2)}";
 
 		// maybe lerp this in the future
 		if(!thrustOn) {// Zero G
-			errStr += "\nnot much thrust";
+			// errStr += "\nnot much thrust";
 			Vector3D direction = Vector3D.Zero;
 			if(program.mainController != null) {
-				direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration * shipMass / 1.414f;
+				direction = ((program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration * shipMass) / 1.414f;
 			} else {
-				direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration * shipMass / 1.414f;
+				direction = ((program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration * shipMass) / 1.414f;
 			}
 			if(dampeners) {
 				angleCos = rotor.setFromVec(direction + requiredVec);
+				errStr += "damp";
 			} else {
 				if(program.shipVelocity.LengthSquared() > direction.LengthSquared()) {
 					angleCos = rotor.setFromVec(requiredVec - program.shipVelocity);
+					errStr += "ndampa";
 				} else {
 					angleCos = rotor.setFromVec(direction + requiredVec);
+					errStr += "ndampb";
 				}
 			}
+			errStr += $"{detectThrustCounter}";
 			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
 		} else {// In Gravity
-			errStr += "\nlots of thrust";
+			// errStr += "\nlots of thrust";
 			angleCos = rotor.setFromVec(requiredVec);
 			// rotor.setFromVecOld(requiredVec);
 		}
-		errStr += "\n" + rotor.errStr;
+		// errStr += "\n" + rotor.errStr;
 		rotor.errStr = "";
 
 
@@ -1090,23 +1068,31 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		}
 
 		//set the thrust for each engine
-		for(int i = 0; i < activeThrusters.Count; i++) {
-			errStr += "\n" + activeThrusters[i].errStr;
-			activeThrusters[i].errStr = "";
+		foreach(Thruster thruster in activeThrusters) {
+			// errStr += "\n" + activeThrusters[i].errStr;
+			thruster.errStr = "";
 			if(!jetpack || !thrustOn) {
-				activeThrusters[i].setThrust(0);
-				activeThrusters[i].theBlock.ApplyAction("OnOff_Off");
+				thruster.setThrust(0);
+				thruster.theBlock.ApplyAction("OnOff_Off");
 			} else {
-				errStr += thrustOffset.progressBar();
-				Vector3D thrust = thrustOffset * requiredVec * activeThrusters[i].theBlock.MaxEffectiveThrust / totalEffectiveThrust;
-				activeThrusters[i].setThrust(thrust);
-				activeThrusters[i].theBlock.ApplyAction("OnOff_On");
+				// errStr += thrustOffset.progressBar();
+				Vector3D thrust = thrustOffset * requiredVec * thruster.theBlock.MaxEffectiveThrust / totalEffectiveThrust;
+				thruster.setThrust(thrust);
+				thruster.theBlock.ApplyAction("OnOff_On");
 			}
 		}
 		oldJetpack = jetpack;
 	}
 
 	public float calcTotalEffectiveThrust(List<Thruster> thrusters) {
+		float total = 0;
+		foreach(Thruster t in thrusters) {
+			total += t.theBlock.MaxEffectiveThrust;
+		}
+		return total;
+	}
+
+	public float calcTotalEffectiveThrust(HashSet<Thruster> thrusters) {
 		float total = 0;
 		foreach(Thruster t in thrusters) {
 			total += t.theBlock.MaxEffectiveThrust;
@@ -1150,15 +1136,16 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 		Vector3D engineDirection = Vector3D.Zero;
 		Vector3D engineDirectionNeg = Vector3D.Zero;
 		Vector3I thrustDir = Vector3I.Zero;
-		Base6Directions.Direction rotTopUp = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Up);
-		Base6Directions.Direction rotTopDown = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Down);
+		// Base6Directions.Direction rotTopUp = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Up);
+		Base6Directions.Direction rotTopUp = rotor.theBlock.Top.Orientation.Up;
 
 		// add all the thrusters effective power
 		foreach(Thruster t in availableThrusters) {
-			Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
+			// Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
+			Base6Directions.Direction thrustForward = t.theBlock.Orientation.Forward; // Exhaust goes this way
 
 			//if its not facing rotor up or rotor down
-			if(!(thrustForward == rotTopUp || thrustForward == rotTopDown)) {
+			if(!(thrustForward == rotTopUp || thrustForward == Base6Directions.GetFlippedDirection(rotTopUp))) {
 				// add it in
 				var thrustForwardVec = Base6Directions.GetVector(thrustForward);
 				if(thrustForwardVec.X < 0 || thrustForwardVec.Y < 0 || thrustForwardVec.Z < 0) {
@@ -1166,8 +1153,6 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 				} else {
 					engineDirection += Base6Directions.GetVector(thrustForward) * t.theBlock.MaxEffectiveThrust;
 				}
-			} else {
-				// thrusters.Remove(t);
 			}
 		}
 
