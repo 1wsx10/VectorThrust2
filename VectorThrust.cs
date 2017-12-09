@@ -379,7 +379,7 @@ public void Main(string argument, UpdateType runType) {
 		for(int i = 0; i < g.Count; i++) {
 			g[i].requiredVec = req;
 			// Echo(g[i].errStr);
-			g[i].go(jetpack);
+			g[i].go(jetpack, shipMass);
 			total += req.Length();
 			// write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
 			// write(g[i].errStr);
@@ -958,6 +958,19 @@ List<Nacelle> getNacelles() {
 	return nacelles;
 }
 
+public float lerp(float a, float b, float cutoff) {
+	float percent = a/b;
+	percent -= cutoff;
+	percent *= 1/(1-cutoff);
+	if(percent > 1) {
+		percent = 1;
+	}
+	if(percent < 0) {
+		percent = 0;
+	}
+	return percent;
+}
+
 void displayNacelles(List<Nacelle> nacelles) {
 	foreach(Nacelle n in nacelles) {
 		Echo($"\nRotor Name: {n.rotor.theBlock.CustomName}");
@@ -1038,7 +1051,7 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 	}
 
 	// final calculations and setting physical components
-	public void go(bool jetpack) {
+	public void go(bool jetpack, float shipMass) {
 		errStr = "";
 		// errStr += $"\nactive thrusters: {activeThrusters.Count}";
 		// errStr += $"\nall thrusters: {thrusters.Count}";
@@ -1046,25 +1059,49 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 
 		double angleCos = 0;
 
+		// TODO: fix this so that it cuts-off when the dampeners are on
+		// TODO: fix the thruster on/off code
+		// TODO: make the rotor and thruster class extensions/inheritence rather than contianers
+
+
+	Vector3D direction = Vector3D.Zero;
+	if(program.mainController != null) {
+		direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration * shipMass / 1.414f;
+	} else {
+		direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration * shipMass / 1.414f;
+	}
+	direction *= 0.05f;
+
+/*
+	// ////////////////////////////////////lerp
+
+	float percent = lerp((float)requiredVec.Length() * 20, (float)gravCutoff * shipMass, 0.1f);
+	requiredVec = requiredVec * percent + direction * (1-percent);
+	write($"\n{Math.Round(percent, 2) * 100}%");
+	write($"\n{Math.Round(requiredVec.Length(), 0)}N");
+	// ///////////////////////end of lerp
+*/
+
 		// maybe lerp this in the future
-		if(requiredVec.LengthSquared() < gravCutoff*gravCutoff) {// Zero G
-			Vector3D direction = Vector3D.Zero;
-			if(program.mainController != null) {
-				direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
-			} else {
-				direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
-			}
-			if(program.shipVelocity.LengthSquared() > direction.LengthSquared()) {
-				angleCos = rotor.setFromVec(requiredVec - program.shipVelocity);
-			} else {
-				angleCos = rotor.setFromVec(direction + requiredVec);
-			}
+		// if(requiredVec.LengthSquared() < Math.Pow(gravCutoff * shipMass, 2)) {// Zero G
+			// errStr += "not much thrust";
+
+			// if(program.shipVelocity.LengthSquared() > direction.LengthSquared()) {
+				// angleCos = rotor.setFromVec(requiredVec - program.shipVelocity);
+			// } else {
+				// angleCos = rotor.setFromVec(direction + requiredVec);
+			// }
 			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
-		} else {// In Gravity
-			angleCos = rotor.setFromVec(requiredVec);
+		// } else {// In Gravity
+			// errStr += "lots of thrust";
+			// errStr += $" {Math.Round(requiredVec.Length(), 0)}N";
+			Vector3D rot_dir = requiredVec + direction;
+			// float percentage = program.lerp((float)rot_dir.LengthSquared(), (float)direction.LengthSquared() * 3, 0.3f);
+			// rot_dir = rot_dir * percentage + direction * (1-percentage);
+			angleCos = rotor.setFromVec(rot_dir, 0.2f);
 			// rotor.setFromVecOld(requiredVec);
-		}
-		errStr += rotor.errStr;
+		// }
+		errStr += "\n" + rotor.errStr;
 		rotor.errStr = "";
 
 
@@ -1089,7 +1126,7 @@ where x1 and x2 = x coordinate of mass 1 and mass 2 respectively
 
 		//set the thrust for each engine
 		for(int i = 0; i < activeThrusters.Count; i++) {
-			errStr += activeThrusters[i].errStr;
+			errStr += "\n" + activeThrusters[i].errStr;
 			activeThrusters[i].errStr = "";
 			if(!jetpack) {
 				activeThrusters[i].setThrust(0);
@@ -1334,14 +1371,14 @@ public class Rotor {
 	}
 
 	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
-	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection) {
+	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection, float multiplier) {
 		double errorScale = Math.PI * maxRotorRPM;
 
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
 		double err = angle.Dot(rotor.WorldMatrix.Up);
 
-		err *= errorScale;
+		err *= errorScale * multiplier;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
 		if (err > maxRotorRPM) {
 			rotor.TargetVelocityRPM = (float)maxRotorRPM;
@@ -1354,11 +1391,11 @@ public class Rotor {
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
-	public double setFromVec(Vector3D desiredVec) {
+	public double setFromVec(Vector3D desiredVec, float multiplier) {
 		desiredVec = Vector3D.Reject(desiredVec, theBlock.WorldMatrix.Up);
 		desiredVec.Normalize();
 		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
-		PointRotorAtVector(theBlock, desiredVec, currentDir/*theBlock.Top.WorldMatrix.Forward*/);
+		PointRotorAtVector(theBlock, desiredVec, currentDir/*theBlock.Top.WorldMatrix.Forward*/, multiplier);
 
 		return angleBetweenCos(currentDir, desiredVec, desiredVec.Length());
 	}
