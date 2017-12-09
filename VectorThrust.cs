@@ -369,7 +369,7 @@ public void Main(string argument, UpdateType runType) {
 			g[i].go(jetpack, dampeners, shipMass);
 			total += req.Length();
 			// write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
-			write(g[i].errStr);
+			// write(g[i].errStr);
 			// foreach(Thruster t in g[i].activeThrusters) {
 			// 	// Echo($"Thruster: {t.theBlock.CustomName}\n{t.errStr}");
 			// }
@@ -1015,7 +1015,7 @@ public class Nacelle {
 			thrustOn = false;
 		}
 
-		errStr += $"thrustOn: {thrustOn} \n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass), 2)}\n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass*0.01), 2)}";
+		// errStr += $"thrustOn: {thrustOn} \n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass), 2)}\n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass*0.01), 2)}";
 
 		// maybe lerp this in the future
 		if(!thrustOn) {// Zero G
@@ -1031,7 +1031,7 @@ public class Nacelle {
 			} else {
 				angleCos = rotor.setFromVec((requiredVec - program.shipVelocity) + direction);
 			}
-			errStr += $"\n{detectThrustCounter}";
+			// errStr += $"\n{detectThrustCounter}";
 			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
 		} else {// In Gravity
 			// errStr += "\nlots of thrust";
