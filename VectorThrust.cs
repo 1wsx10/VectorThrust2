@@ -271,10 +271,12 @@ public void Main(string argument, UpdateType runType) {
 		Vector3D dampVec = Vector3D.Zero;
 		if(desiredVec != Vector3D.Zero) {
 			// cancel backwards movement
-			if(Vector3D.Dot(desiredVec, shipVelocity) < 0)//if you want to go oppisite to velocity
-				dampVec = shipVelocity.project(desiredVec);
+			if(desiredVec.dot(shipVelocity) < 0) {
+				//if you want to go oppisite to velocity
+				dampVec = shipVelocity.project(desiredVec.normalized());
+			}
 			// cancel sideways movement
-			dampVec += shipVelocity.reject(desiredVec);
+			dampVec += shipVelocity.reject(desiredVec.normalized());
 		} else {
 			// no desiredVec, just use shipVelocity
 			dampVec = shipVelocity;
@@ -1431,11 +1433,7 @@ public class Rotor {
 }
 
 }
-// example for extension method:
 public static class CustomProgramExtensions {
-	public static void AddFunction(this IMyTerminalBlock block) {
-
-	}
 
 	public static bool IsAlive(this IMyTerminalBlock block) {
 		return block.CubeGrid.GetCubeBlock(block.Position)?.FatBlock == block;
@@ -1450,6 +1448,14 @@ public static class CustomProgramExtensions {
 
 	public static Vector3D reject(this Vector3D a, Vector3D b) {
 		return Vector3D.Reject(a, b);
+	}
+
+	public static Vector3D normalized(this Vector3D vec) {
+		return Vector3D.Normalize(vec);
+	}
+
+	public static double dot(this Vector3D a, Vector3D b) {
+		return Vector3D.Dot(a, b);
 	}
 
 	// get movement and turn it into worldspace
@@ -1479,4 +1485,17 @@ public static class CustomProgramExtensions {
 
 	public static string progressBar(this Vector3D val) {
 		return val.Length().progressBar();
+	}
+
+
+	public static Vector3D Round(this Vector3D vec, int num) {
+		return Vector3D.Round(vec, num);
+	}
+
+	public static double Round(this double val, int num) {
+		return Math.Round(val, num);
+	}
+
+	public static float Round(this float val, int num) {
+		return (float)Math.Round(val, num);
 	}
