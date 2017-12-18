@@ -540,10 +540,10 @@ public Vector3D getMovementInput(string arg) {
 
 	// dampeners (if there are any normal thrusters, the dampeners control works)
 	if(normalThrusters.Count != 0) {
-		if(mainController != null && mainController.IsUnderControl) {
+		if(onlyMainCockpit || mainController != null && mainController.IsUnderControl) {
 			dampeners = mainController.DampenersOverride;
 		} else {
-			dampeners = false;
+			// dampeners = false;
 			foreach(IMyShipController cont in controllers) {
 				if(cont.DampenersOverride && cont.IsUnderControl) {
 					dampeners = true;
