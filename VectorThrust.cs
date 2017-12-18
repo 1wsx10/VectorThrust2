@@ -61,6 +61,12 @@ public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
 
+// this is used to identify programmable blocks as instances of vector thrust
+// if you change this, you should probably change all those that are going to connect to the same ship, otherwise they will fight for control.
+public const string myName = "|VT|";
+public const string myNameStandby = ".VT.";
+
+
 // default acceleration in situations with 0 (or low) gravity
 public const float zeroGAcceleration = 9.81f;
 // if gravity becomes less than this, zeroGAcceleration will kick in
@@ -408,10 +414,16 @@ public List<Nacelle> nacelles = new List<Nacelle>();
 public List<IMyThrust> normalThrusters = new List<IMyThrust>();
 public List<IMyTextPanel> screens = new List<IMyTextPanel>();
 public List<IMyTextPanel> usableScreens = new List<IMyTextPanel>();
+public List<IMyProgrammableBlock> programBlocks = new List<IMyProgrammableBlock>();
+
+
 public int rotorCount = 0;
 public int rotorTopCount = 0;
 public int thrusterCount = 0;
 public int screenCount = 0;
+public int programBlockCount = 0;
+
+
 public bool updateNacelles = false;
 public bool standby = false;
 public Vector3D shipVelocity = Vector3D.Zero;
@@ -760,11 +772,12 @@ public void checkNacelles(bool verbose) {
 	var blocks = new List<IMyTerminalBlock>();
 	echoV("Checking Nacelles...", verbose);
 
-	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyShipController || block is IMyThrust || block is IMyMotorStator || block is IMyTextPanel));
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyShipController || block is IMyThrust || block is IMyMotorStator || block is IMyTextPanel || block is IMyProgrammableBlock));
 	List<IMyShipController> conts = new List<IMyShipController>();
 	List<IMyMotorStator> rots = new List<IMyMotorStator>();
 	List<IMyThrust> thrs = new List<IMyThrust>();
 	List<IMyTextPanel> txts = new List<IMyTextPanel>();
+	List<IMyProgrammableBlock> programBlocks = new List<IMyProgrammableBlock>();
 
 	for(int i = 0; i < blocks.Count; i++) {
 		if(blocks[i] is IMyShipController) {
@@ -778,6 +791,9 @@ public void checkNacelles(bool verbose) {
 		}
 		if(blocks[i] is IMyTextPanel) {
 			txts.Add((IMyTextPanel)blocks[i]);
+		}
+		if(blocks[i] is IMyProgrammableBlock) {
+			programBlocks.Add((IMyProgrammableBlock)blocks[i]);
 		}
 	}
 
