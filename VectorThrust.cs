@@ -550,13 +550,34 @@ public Vector3D getMovementInput(string arg) {
 
 	}
 
+	bool changeDampeners = false;
+	if(arg.Contains(dampenersArg.ToLower())) {
+		dampeners = !dampeners;
+		changeDampeners	= true;
+	}
+	if(arg.Contains(jetpackArg.ToLower())) {
+		jetpack = !jetpack;
+	}
+	if(arg.Contains(raiseAccelArg.ToLower())) {
+		accelExponent++;
+	}
+	if(arg.Contains(lowerAccelArg.ToLower())) {
+		accelExponent--;
+	}
+	if(arg.Contains(resetAccelArg.ToLower())) {
+		accelExponent = 0;
+	}
+
 	// dampeners (if there are any normal thrusters, the dampeners control works)
 	if(normalThrusters.Count != 0) {
 		if(onlyMainCockpit || mainController != null && mainController.IsUnderControl) {
-			dampeners = mainController.DampenersOverride;
+			if(@changeDampeners) {
+				dampeners = mainController.DampenersOverride;
+			}
 		} else {
 			// dampeners = false;
 			foreach(IMyShipController cont in controllers) {
+				if(changeDampeners) continue;
 				if(cont.DampenersOverride && cont.IsUnderControl) {
 					dampeners = true;
 				}
@@ -573,22 +594,6 @@ public Vector3D getMovementInput(string arg) {
 				moveVec += cont.getWorldMoveIndicator();
 			}
 		}
-	}
-
-	if(arg.Contains(dampenersArg.ToLower())) {
-		dampeners = !dampeners;
-	}
-	if(arg.Contains(jetpackArg.ToLower())) {
-		jetpack = !jetpack;
-	}
-	if(arg.Contains(raiseAccelArg.ToLower())) {
-		accelExponent++;
-	}
-	if(arg.Contains(lowerAccelArg.ToLower())) {
-		accelExponent--;
-	}
-	if(arg.Contains(resetAccelArg.ToLower())) {
-		accelExponent = 0;
 	}
 
 	return moveVec;
