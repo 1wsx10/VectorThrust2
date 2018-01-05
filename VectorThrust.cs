@@ -102,8 +102,6 @@ public const double thrustModifierAbove = 0.1;// how close the rotor has to be t
 public const double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
 
 
-// debugging prints
-public const bool debug = true;
 
 public Program() {
 	Echo("Just Compiled");
@@ -202,7 +200,7 @@ public void Main(string argument, UpdateType runType) {
 		}
 	}
 
-	checkNacelles(debug);
+	checkNacelles();
 	if(updateNacelles) {
 		nacelles.Clear();
 		nacelles = getNacelles();
@@ -391,9 +389,6 @@ public void Main(string argument, UpdateType runType) {
 	write("Active Nacelles: " + nacelles.Count);//TODO: make activeNacelles account for the number of nacelles that are actually active (activeThrusters.Count > 0)
 	// write("Got Nacelles: " + gotNacellesCount);
 	// write("Update Nacelles: " + updateNacellesCount);
-	Echo(deBug);
-	write(deBug);
-	deBug = "";
 	// ========== END OF MAIN ==========
 }
 
@@ -416,6 +411,7 @@ public List<IMyTextPanel> screens = new List<IMyTextPanel>();
 public List<IMyTextPanel> usableScreens = new List<IMyTextPanel>();
 public List<IMyProgrammableBlock> programBlocks = new List<IMyProgrammableBlock>();
 
+public float oldMass = 0;
 
 public int rotorCount = 0;
 public int rotorTopCount = 0;
@@ -432,41 +428,11 @@ public bool justCompiled = true;
 public bool goToStandby = false;
 public bool comeFromStandby = false;
 
-public string deBug = "";
 
-
-
-
-// DEPRECATED
-//public float speedLimit = 90000;//speed limit of your game
-//this is because you cant disable rotor safety lock
-//the best you can do is set the safety lock as max speed of the game.
-//default is 100m/s i recommend subtract 10 and set it as that.
-//make sure all your rotors safety lock is at max speed
 
 public const string TimName = "%VectorTim";
 
-// DEPRECATED
-// TODO: remove this
-public IMyTimerBlock getTimer() {
-	List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
-	GridTerminalSystem.GetBlocksOfType<IMyTimerBlock>(blocks);
 
-	for(int i = blocks.Count-1; i >= 0; i--) {
-		if(!blocks[i].CustomName.ToLower().Contains(TimName.ToLower())) {//not named as the vector timer
-			// remove it from the list
-			blocks.Remove(blocks[i]);
-		}
-	}
-
-	if(blocks.Count > 0) {
-		//use first one
-		return (IMyTimerBlock)blocks[0];
-	} else {
-		Echo($"ERROR: no timer found\nYou need to set a timer block to run the programmable block and put '{TimName}' in its name");
-		return null;
-	}
-}
 
 public void getScreens(List<IMyTextPanel> screens) {
 	this.screens = screens;
@@ -650,10 +616,33 @@ bool getControllers(List<IMyShipController> blocks) {
 	return true;
 }
 
+public IMyShipController findACockpit() {
+	foreach(IMyShipController cont in usableControllers) {
+		if(cont.IsWorking) {
+			return cont;
+		}
+	}
+
+	return null;
+}
+
 // checks to see if the nacelles have changed
-public void checkNacelles(bool verbose) {
+public void checkNacelles() {
 	var blocks = new List<IMyTerminalBlock>();
-	echoV("Checking Nacelles...", verbose);
+	Echo("Checking Nacelles..");
+
+	IMyShipController cont = findACockpit();
+	if(cont != null) {
+		MyShipMass shipmass = cont.CalculateShipMass();
+		if(oldMass == shipmass.BaseMass) {
+			Echo("Mass is the same, everything is good.");
+			return;
+		}
+		Echo("Mass is different, checking everything.");
+		oldMass = shipmass.BaseMass;
+	} else {
+		Echo("No cockpit registered, checking everything.");
+	}
 
 	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyShipController || block is IMyThrust || block is IMyMotorStator || block is IMyTextPanel || block is IMyProgrammableBlock));
 	List<IMyShipController> conts = new List<IMyShipController>();
@@ -683,12 +672,12 @@ public void checkNacelles(bool verbose) {
 
 	// if you use the following if statement, it won't lock the non-main cockpit if someone sets the main cockpit, until a recompile or world load :/
 	if(/*(mainController != null ? !mainController.IsMainCockpit : false) || */controllers.Count != conts.Count) {
-		echoV($"Controller count ({controllers.Count}) is out of whack (current: {conts.Count})", verbose);
+		Echo($"Controller count ({controllers.Count}) is out of whack (current: {conts.Count})");
 		getControllers(conts);
 	}
 
 	if(screenCount != txts.Count) {
-		echoV($"Screen count ({screenCount}) is out of whack (current: {txts.Count})", verbose);
+		Echo($"Screen count ({screenCount}) is out of whack (current: {txts.Count})");
 		getScreens(txts);
 	} else {
 		foreach(IMyTextPanel screen in txts) {
@@ -699,7 +688,7 @@ public void checkNacelles(bool verbose) {
 	}
 
 	if(rotorCount != rots.Count) {
-		echoV($"Rotor count ({rotorCount}) is out of whack (current: {rots.Count})", verbose);
+		Echo($"Rotor count ({rotorCount}) is out of whack (current: {rots.Count})");
 		updateNacelles = true;
 		return;
 	}
@@ -711,59 +700,33 @@ public void checkNacelles(bool verbose) {
 		}
 	}
 	if(rotorTopCount != rotorHeads.Count) {
-		echoV($"Rotor Head count ({rotorTopCount}) is out of whack (current: {rotorHeads.Count})", verbose);
-		echoV($"Rotors: {rots.Count}", verbose);
+		Echo($"Rotor Head count ({rotorTopCount}) is out of whack (current: {rotorHeads.Count})");
+		Echo($"Rotors: {rots.Count}");
 		updateNacelles = true;
 		return;
 	}
 
 	if(thrusterCount != thrs.Count) {
-		echoV($"Thruster count ({thrusterCount}) is out of whack (current: {thrs.Count})", verbose);
+		Echo($"Thruster count ({thrusterCount}) is out of whack (current: {thrs.Count})");
 		updateNacelles = true;
 		return;
 	}
 
-	echoV("They seem fine.", verbose);
-}
-
-void echoV(string s, bool verbose) {
-	if(verbose) {
-		Echo(s);
-	}
+	Echo("They seem fine.");
 }
 
 public bool init() {
-	Echo("init");
+	Echo("Initialising..");
 	nacelles.Clear();
 	nacelles = getNacelles();
-	getControllers();
-	if(usableControllers.Count == 0) {
+	if(!getControllers()) {
+		Echo("Init failed.");
 		return false;
 	}
-	/*
-	if(false && timer == null) {//TODO: remove this
-		timer = getTimer();
-		if(timer == null) {
-			return false;
-		}
-	}/**/
+	Echo("Init success.");
 	return true;
 }
-/*
-IMyShipController getController() {
-	var blocks = new List<IMyShipController>();
-	GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks);
-	IMyShipController cont = blocks[0];
 
-	foreach(IMyShipController c in blocks) {
-		if(c.IsUnderControl) {
-			return c;
-		}
-	}
-
-	return cont;
-}
-*/
 // G(thrusters * rotors)
 // gets all the rotors and thrusters
 List<Nacelle> getNacelles() {
@@ -773,7 +736,7 @@ List<Nacelle> getNacelles() {
 	// 1 call to GTS
 	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyThrust) || (block is IMyMotorStator));
 
-	echoV("Getting Blocks for thrusters & rotors", debug);
+	Echo("Getting Blocks for thrusters & rotors");
 	// get the blocks we care about
 	var rotors = new List<IMyMotorStator>();
 	normalThrusters.Clear();
@@ -792,7 +755,7 @@ List<Nacelle> getNacelles() {
 
 
 
-	echoV("Getting Rotors", debug);
+	Echo("Getting Rotors");
 	// make nacelles out of all valid rotors
 	rotorTopCount = 0;
 	foreach(IMyMotorStator current in rotors) {
@@ -814,7 +777,7 @@ List<Nacelle> getNacelles() {
 		nacelles.Add(new Nacelle(rotor, this));
 	}
 
-	echoV("Getting Thrusters", debug);
+	Echo("Getting Thrusters");
 	// add all thrusters to their corrisponding nacelle and remove nacelles that have none
 	for(int i = nacelles.Count-1; i >= 0; i--) {
 		for(int j = normalThrusters.Count-1; j >= 0; j--) {
