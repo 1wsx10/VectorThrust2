@@ -872,7 +872,7 @@ public class Nacelle {
 		// TODO: fix the thruster on/off code
 
 		// hysteresis
-		if(requiredVec.Length() > gravCutoff * shipMass) {
+		if(requiredVec.Length() > gravCutoff * shipMass) {//TODO: this causes problems if there are many small nacelles
 			thrustOn = true;
 		}
 		if(requiredVec.Length() < 0.1 * gravCutoff * shipMass) {
