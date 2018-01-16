@@ -1206,8 +1206,11 @@ public class Rotor {
 
 	public string errStr = "";
 
+	public PID positionController;
+
 	public Rotor(IMyMotorStator rotor) {
 		this.theBlock = rotor;
+		this.positionController = new PID(1, 0, 0);
 	}
 
 	public void setPointDir(Vector3D dir) {
@@ -1222,11 +1225,11 @@ public class Rotor {
 
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
-		double err = angle.Dot(rotor.WorldMatrix.Up);
+		double err = angle.Dot(rotor.WorldMatrix.Up) errorScale * multiplier;
 
 		// TODO: fit in a PID right here
+		err = PID(err);
 
-		err *= errorScale * multiplier;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
 		if (err > maxRotorRPM) {
 			rotor.TargetVelocityRPM = (float)maxRotorRPM;
