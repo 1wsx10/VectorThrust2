@@ -1,6 +1,20 @@
 // ALWAYS CHECK FOR UPDATES
 // to update, simply load it from the workshop tab again (no need to actually go to the workshop page)
 
+
+
+
+
+public float pmul = 2.2f;
+public float imul = 0.1f;
+public float dmul = -2f;
+public const bool enablePID = false;
+
+public float idecay = 0.9f;
+
+
+
+
 // weather or not dampeners or thrusters are on when you start the script
 public bool dampeners = true;
 public bool jetpack = false;
@@ -236,8 +250,33 @@ public void Main(string argument, UpdateType runType) {
 	// ========== END OF STARTUP ==========
 
 
+	if(enablePID) {
+
+		if(argument.Contains("pup")) {
+			pmul += 0.1f;
+		}
+		if(argument.Contains("pdn")) {
+			pmul -= 0.1f;
+		}
+		if(argument.Contains("iup")) {
+			imul += 0.1f;
+		}
+		if(argument.Contains("idn")) {
+			imul -= 0.1f;
+		}
+		if(argument.Contains("dup")) {
+			dmul += 0.1f;
+		}
+		if(argument.Contains("ddn")) {
+			dmul -= 0.1f;
+		}
 
 
+
+		write($"p: {pmul}");
+		write($"i: {imul}");
+		write($"d: {dmul}");
+	}
 
 
 
@@ -773,7 +812,7 @@ List<Nacelle> getNacelles() {
 
 		// it's not set to not be a nacelle rotor
 		// it's topgrid is not the programmable blocks grid
-		Rotor rotor = new Rotor(current);
+		Rotor rotor = new Rotor(current, this);
 		nacelles.Add(new Nacelle(rotor, this));
 	}
 
@@ -832,6 +871,8 @@ void displayNacelles(List<Nacelle> nacelles) {
 
 public class PID {
 
+	public Program prog;
+
 	public readonly float pmul = 1;
 	public readonly float imul = 0;
 	public readonly float dmul = 0;
@@ -839,9 +880,11 @@ public class PID {
 	private double lasterror = 0;
 	private double integral = 0;
 
-	public PID() {}
+	public PID(Program prog) {
+		this.prog = prog;
+	}
 
-	public PID(float proportional, float integral, float derivative) {
+	public PID(float proportional, float integral, float derivative, Program prog) : this(prog) {
 		this.pmul = proportional;
 		this.imul = integral;
 		this.dmul = derivative;
@@ -853,12 +896,18 @@ public class PID {
 	}
 
 	public double update(double error) {
-		double deltaT = me.Runtime.TimeSinceLastRun.TotalMilliseconds;
+		double deltaT = prog.Runtime.TimeSinceLastRun.TotalMilliseconds;
+		deltaT = (deltaT == 0 ? 1 : deltaT);
 
+		integral *= prog.idecay;
 		integral += error/deltaT;
 		double derivative = (error - lasterror) / deltaT;
 
-		return error * pmul + integral * imul + derivative * dmul;
+		// return error * pmul + integral * imul + derivative * dmul;
+		if(!enablePID) {
+			return error;
+		}
+		return error * prog.pmul + integral * prog.imul + derivative * prog.dmul;
 	}
 }
 
@@ -1208,9 +1257,9 @@ public class Rotor {
 
 	public PID positionController;
 
-	public Rotor(IMyMotorStator rotor) {
+	public Rotor(IMyMotorStator rotor, Program prog) {
 		this.theBlock = rotor;
-		this.positionController = new PID(1, 0, 0);
+		this.positionController = new PID(1, 0, 0, prog);
 	}
 
 	public void setPointDir(Vector3D dir) {
@@ -1225,10 +1274,10 @@ public class Rotor {
 
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
-		double err = angle.Dot(rotor.WorldMatrix.Up) errorScale * multiplier;
+		double err = angle.Dot(rotor.WorldMatrix.Up) * errorScale * multiplier;
 
 		// TODO: fit in a PID right here
-		err = PID(err);
+		err = positionController.update(err);
 
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
 		if (err > maxRotorRPM) {
