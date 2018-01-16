@@ -830,6 +830,21 @@ void displayNacelles(List<Nacelle> nacelles) {
 	}
 }
 
+public class PID {
+
+	public readonly float proportional = 1;
+	public readonly float integral = 1;
+	public readonly float derivative = 1;
+
+	public PID() {}
+
+	public PID(float proportional, float integral, float derivative) {
+		this.proportional = proportional;
+		this.integral = integral;
+		this.derivative = derivative;
+	}
+}
+
 public class Nacelle {
 	public String errStr;
 	public Program program;
