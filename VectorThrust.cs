@@ -1192,6 +1192,8 @@ public class Rotor {
 		// Project onto rotor
 		double err = angle.Dot(rotor.WorldMatrix.Up);
 
+		// TODO: fit in a PID right here
+
 		err *= errorScale * multiplier;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
 		if (err > maxRotorRPM) {
