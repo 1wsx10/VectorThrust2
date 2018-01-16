@@ -832,16 +832,33 @@ void displayNacelles(List<Nacelle> nacelles) {
 
 public class PID {
 
-	public readonly float proportional = 1;
-	public readonly float integral = 1;
-	public readonly float derivative = 1;
+	public readonly float pmul = 1;
+	public readonly float imul = 0;
+	public readonly float dmul = 0;
+
+	private double lasterror = 0;
+	private double integral = 0;
 
 	public PID() {}
 
 	public PID(float proportional, float integral, float derivative) {
-		this.proportional = proportional;
-		this.integral = integral;
-		this.derivative = derivative;
+		this.pmul = proportional;
+		this.imul = integral;
+		this.dmul = derivative;
+	}
+
+	public double update(double setpoint, double measured) {
+		double error = setpoint - measured;
+		return update(error);
+	}
+
+	public double update(double error) {
+		double deltaT = me.Runtime.TimeSinceLastRun.TotalMilliseconds;
+
+		integral += error/deltaT;
+		double derivative = (error - lasterror) / deltaT;
+
+		return error * pmul + integral * imul + derivative * dmul;
 	}
 }
 
