@@ -5,9 +5,9 @@
 
 
 
-public float pmul = 2.2f;
+public float pmul = 0.5f;
 public float imul = 0.1f;
-public float dmul = -2f;
+public float dmul = -0.5f;
 public const bool enablePID = false;
 
 public float idecay = 0.9f;
