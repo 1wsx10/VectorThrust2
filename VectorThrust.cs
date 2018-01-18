@@ -141,8 +141,8 @@ public void Main(string argument, UpdateType runType) {
 	}
 	write($"{spinner} {Runtime.LastRunTimeMs.Round(0)}ms");
 
-	// write(runType.ToString());
 
+	// only accept arguments on certain update types
 	UpdateType valid_argument_updates = UpdateType.None;
 	valid_argument_updates |= UpdateType.Terminal;
 	valid_argument_updates |= UpdateType.Trigger;
