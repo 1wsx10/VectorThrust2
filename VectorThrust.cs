@@ -122,7 +122,8 @@ public void Main(string argument, UpdateType runType) {
 	// ========== STARTUP ==========
 	globalAppend = false;
 
-	Echo("Running "+ programCounter++);
+	programCounter++;
+	Echo($"Last Runtime {Runtime.LastRunTimeMs.Round(2)}ms");
 	String spinner = "";
 	switch(programCounter/10%4) {
 		case 0:
@@ -138,7 +139,7 @@ public void Main(string argument, UpdateType runType) {
 			spinner = "/";
 		break;
 	}
-	write(spinner);
+	write($"{spinner} {Runtime.LastRunTimeMs.Round(0)}ms");
 
 	// write(runType.ToString());
 
@@ -199,6 +200,7 @@ public void Main(string argument, UpdateType runType) {
 			return;
 		}
 	}
+
 
 	checkNacelles();
 	if(updateNacelles) {
