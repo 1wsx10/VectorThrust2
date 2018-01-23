@@ -136,7 +136,8 @@ public void Main(string argument, UpdateType runType) {
 	// ========== STARTUP ==========
 	globalAppend = false;
 
-	Echo("Running "+ programCounter++);
+	programCounter++;
+	Echo($"Last Runtime {Runtime.LastRunTimeMs.Round(2)}ms");
 	String spinner = "";
 	switch(programCounter/10%4) {
 		case 0:
@@ -152,10 +153,10 @@ public void Main(string argument, UpdateType runType) {
 			spinner = "/";
 		break;
 	}
-	write(spinner);
+	write($"{spinner} {Runtime.LastRunTimeMs.Round(0)}ms");
 
-	// write(runType.ToString());
 
+	// only accept arguments on certain update types
 	UpdateType valid_argument_updates = UpdateType.None;
 	valid_argument_updates |= UpdateType.Terminal;
 	valid_argument_updates |= UpdateType.Trigger;
@@ -184,15 +185,8 @@ public void Main(string argument, UpdateType runType) {
 
 	// going into standby mode
 	if((togglePower && !standby) || goToStandby) {
-		standby = true;
-		goToStandby = false;
-		foreach(Nacelle n in nacelles) {
-			n.rotor.theBlock.ApplyAction("OnOff_Off");
-			foreach(Thruster t in n.thrusters) {
-				t.theBlock.ApplyAction("OnOff_Off");
-			}
-		}
-		Runtime.UpdateFrequency = UpdateFrequency.None;
+		enterStandby();
+		return;
 	// coming back from standby mode
 	} else if((anyArg || runType == UpdateType.Terminal) && standby || comeFromStandby) {
 		standby = false;
@@ -214,21 +208,12 @@ public void Main(string argument, UpdateType runType) {
 		}
 	}
 
+
 	checkNacelles();
 	if(updateNacelles) {
 		nacelles.Clear();
 		nacelles = getNacelles();
 		updateNacelles = false;
-	}
-
-	if(standby) {
-		Echo("Standing By");
-		write("Standing By");
-		return;
-	} else {
-		// timer.Trigger();
-		// timer.StartCountdown();
-		// write($"dampers={dampeners}");
 	}
 
 	if(justCompiled) {
@@ -296,6 +281,12 @@ public void Main(string argument, UpdateType runType) {
 	// setup mass
 	MyShipMass myShipMass = usableControllers[0].CalculateShipMass();
 	float shipMass = myShipMass.PhysicalMass;
+
+	if(myShipMass.BaseMass == 0) {
+		Echo("Can't fly a Station");
+		enterStandby();
+		return;
+	}
 
 	// setup gravity
 	float gravLength = (float)worldGrav.Length();
@@ -472,6 +463,21 @@ public bool comeFromStandby = false;
 public const string TimName = "%VectorTim";
 
 
+
+public void enterStandby() {
+	standby = true;
+	goToStandby = false;
+	foreach(Nacelle n in nacelles) {
+		n.rotor.theBlock.ApplyAction("OnOff_Off");
+		foreach(Thruster t in n.thrusters) {
+			t.theBlock.ApplyAction("OnOff_Off");
+		}
+	}
+	Runtime.UpdateFrequency = UpdateFrequency.None;
+
+	Echo("Standing By");
+	write("Standing By");
+}
 
 public void getScreens(List<IMyTextPanel> screens) {
 	this.screens = screens;
