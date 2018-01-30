@@ -4,12 +4,6 @@
 
 
 
-public float pmul = 0.5f;
-public float imul = 0.1f;
-public float dmul = 0.5f;
-public const bool enablePID = true;
-
-public float idecay = 0.9f;
 
 
 
@@ -83,6 +77,16 @@ public const string myNameStandby = ".VT.";
 public const float zeroGAcceleration = 9.81f;
 // if gravity becomes less than this, zeroGAcceleration will kick in
 public const float gravCutoff = 0.1f * 9.81f;
+
+
+// PID settings, these effect how the rotor moves to position
+public float pmul = 1f;
+public float imul = 0f;
+public float dmul = 0f;
+public const bool enablePID = true;
+
+// experimental PID setting: I is multiplied by this each tick, so it shouldn't build up as much
+public float idecay = 0.9f;
 
 
 
@@ -347,6 +351,16 @@ public void Main(string argument, UpdateType runType) {
 		if(argument.Contains("ddn")) {
 			hasChanged = true;
 			dmul -= 0.1f;
+		}
+
+		if(pmul < 0) {
+			pmul *= -1;
+		}
+		if(imul < 0) {
+			imul *= -1;
+		}
+		if(dmul < 0) {
+			dmul *= -1;
 		}
 
 		PIDContainer myPid = null;
@@ -631,6 +645,12 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 
 	try {
 		p_val = (float)Convert.ToDouble(lines[pLine].Substring(2));
+		// no negatives
+		if(p_val < 0) {
+			reset_p = true;
+			p_val *= -1;
+		}
+
 	} catch(Exception e) {
 		// either wrong format or out of float domain or pLine is null
 		reset_p = true;
@@ -638,6 +658,12 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 	}
 	try {
 		i_val = (float)Convert.ToDouble(lines[iLine].Substring(2));
+		// no negatives
+		if(i_val < 0) {
+			reset_i = true;
+			i_val *= -1;
+		}
+
 	} catch(Exception e) {
 		// either wrong format or out of float domain or iLine is null
 		reset_i = true;
@@ -645,6 +671,12 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 	}
 	try {
 		d_val = (float)Convert.ToDouble(lines[dLine].Substring(2));
+		// no negatives
+		if(d_val < 0) {
+			reset_d = true;
+			d_val *= -1;
+		}
+
 	} catch(Exception e) {
 		// either wrong format or out of float domain or dLine is null
 		reset_d = true;
