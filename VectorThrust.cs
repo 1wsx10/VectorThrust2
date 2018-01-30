@@ -233,63 +233,15 @@ public void Main(string argument, UpdateType runType) {
 	// ========== END OF STARTUP ==========
 
 
-	if(enablePID) {
 
-		bool hasChanged = false;
 
-		if(argument.Contains("pup")) {
-			hasChanged = true;
-			pmul += 0.1f;
-		}
-		if(argument.Contains("pdn")) {
-			hasChanged = true;
-			pmul -= 0.1f;
-		}
-		if(argument.Contains("iup")) {
-			hasChanged = true;
-			imul += 0.1f;
-		}
-		if(argument.Contains("idn")) {
-			hasChanged = true;
-			imul -= 0.1f;
-		}
-		if(argument.Contains("dup")) {
-			hasChanged = true;
-			dmul += 0.1f;
-		}
-		if(argument.Contains("ddn")) {
-			hasChanged = true;
-			dmul -= 0.1f;
-		}
-
-		PIDContainer myPid = null;
-
-		if(hasChanged) {
-			myPid = checkPID(Me.CustomData, pmul, imul, dmul);
-		} else {
-			myPid = checkPID(Me.CustomData);
-		}
-
-		if(myPid != null) {
-			pmul = myPid.p;
-			imul = myPid.i;
-			dmul = myPid.d;
-			if(myPid.newText != null) {
-				Me.CustomData = myPid.newText;
-			}
-		}
-
-		write($"p: {pmul}");
-		write($"i: {imul}");
-		write($"d: {dmul}");
-	}
-	// return;
 
 
 
 
 
 	// ========== PHYSICS ==========
+
 
  	// get gravity in world space
 	Vector3D worldGrav = usableControllers[0].GetNaturalGravity();
@@ -358,6 +310,70 @@ public void Main(string argument, UpdateType runType) {
 	Echo("Required Force: " + $"{Math.Round(requiredVec.Length(),0)}" + "N");
 
 	// ========== END OF PHYSICS ==========
+
+
+
+
+
+
+
+
+
+	// ========== OTHER ==========
+	if(enablePID) {
+
+		bool hasChanged = false;
+
+		if(argument.Contains("pup")) {
+			hasChanged = true;
+			pmul += 0.1f;
+		}
+		if(argument.Contains("pdn")) {
+			hasChanged = true;
+			pmul -= 0.1f;
+		}
+		if(argument.Contains("iup")) {
+			hasChanged = true;
+			imul += 0.1f;
+		}
+		if(argument.Contains("idn")) {
+			hasChanged = true;
+			imul -= 0.1f;
+		}
+		if(argument.Contains("dup")) {
+			hasChanged = true;
+			dmul += 0.1f;
+		}
+		if(argument.Contains("ddn")) {
+			hasChanged = true;
+			dmul -= 0.1f;
+		}
+
+		PIDContainer myPid = null;
+
+		if(hasChanged) {
+			myPid = checkPID(Me.CustomData, pmul, imul, dmul);
+		} else {
+			myPid = checkPID(Me.CustomData);
+		}
+
+		if(myPid != null) {
+			pmul = myPid.p;
+			imul = myPid.i;
+			dmul = myPid.d;
+			if(myPid.newText != null) {
+				Me.CustomData = myPid.newText;
+			}
+		}
+
+		if(Me.CustomData.Contains("ShowOnScreen")) {
+			write($"p: {pmul}");
+			write($"i: {imul}");
+			write($"d: {dmul}");
+		}
+	}
+	// ========== END OF OTHER ==========
+
 
 
 
@@ -498,12 +514,12 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 	string[] lines = customData.Split('\n');
 
 	int markerLine = -1;
-	bool reset_marker = false;
 	int pLine = -1;
-	bool fixPCaps = false;
 	int iLine = -1;
-	bool fixICaps = false;
 	int dLine = -1;
+	bool reset_marker = false;
+	bool fixPCaps = false;
+	bool fixICaps = false;
 	bool fixDCaps = false;
 	string first2 = null;
 
@@ -597,7 +613,9 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 
 	if(markerLine == -1) {
 		// no pid settings
-		return null;
+		if(setp == -1 && seti == -1 && setd == -1) {
+			return null;
+		}
 	}
 
 
@@ -657,7 +675,7 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 
 
 
-
+	// Echo("End of reading, start writing");
 	// end of reading, now to write
 
 
@@ -675,6 +693,7 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 		fixPCaps ||
 		fixICaps ||
 		fixDCaps ||
+		markerLine == -1 ||
 		pLine == -1 ||
 		iLine == -1 ||
 		dLine == -1 ||
@@ -695,6 +714,7 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 	if(updateText) {
 
 		// convert to linked list since we will probably add things in
+		// Echo("convert to linked list since we will probably add things in");
 		List<string> linesList = new List<string>();
 		linesList.Capacity = lines.Length;
 		for(int i = 0; i < lines.Length; i++) {
@@ -703,6 +723,7 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 
 
 		// reset null ones
+		// Echo("reset null ones");
 		if(p_val == -1) {
 			p_val = pmul;
 		}
@@ -713,7 +734,13 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 			d_val = dmul;
 		}
 
+
 		// insert missing lines
+		// Echo("insert missing lines");
+		if(markerLine == -1) {
+			markerLine = linesList.Count;
+			linesList.Add(pidMarker);
+		}
 		if(pLine == -1) {
 			pLine = markerLine + 1;
 			linesList.Insert(pLine, $"{pMarker} {p_val}");
@@ -733,9 +760,12 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 			fixDCaps = false;
 		}
 
+
 		// reset syntax errors
+		// Echo("reset syntax errors");
 		if(reset_marker) {
 			linesList[markerLine] = pidMarker;
+			reset_marker = false;
 		}
 		if(reset_p) {
 			linesList[pLine] = $"{pMarker} {p_val}";
@@ -751,6 +781,7 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 		}
 
 		// fix caps
+		// Echo("fix caps");
 		if(fixPCaps) {
 			linesList[pLine] = linesList[pLine].ToUpper();
 		}
@@ -767,6 +798,7 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 
 
 		// append all lines into the stringbuilder
+		// Echo("append all lines into the stringbuilder");
 		StringBuilder finalLines = new StringBuilder();
 		string lastLine = null;
 		for(int i = 0; i < linesList.Count; i++) {
@@ -777,7 +809,7 @@ public PIDContainer checkPID(string customData, float setp = -1, float seti = -1
 			if(i > iLine && i < dLine) continue;
 
 			// add newlines between
-			if(lastLine != null && lastLine[lastLine.Length - 1] != '\n') {
+			if(lastLine != null && lastLine.Length != 0 && lastLine[lastLine.Length - 1] != '\n') {
 				finalLines.Append('\n');
 			}
 
