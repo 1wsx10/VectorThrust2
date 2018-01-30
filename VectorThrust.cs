@@ -1276,9 +1276,9 @@ public class PID {
 
 	public Program prog;
 
-	public readonly float pmul = 1;
-	public readonly float imul = 0;
-	public readonly float dmul = 0;
+	public float pmul = 1;
+	public float imul = 0;
+	public float dmul = 0;
 
 	private double lasterror = 0;
 	private double integral = 0;
@@ -1310,7 +1310,7 @@ public class PID {
 		if(!enablePID) {
 			return error;
 		}
-		return error * prog.pmul + integral * prog.imul + -1 * derivative * prog.dmul;
+		return error * pmul + integral * imul + -1 * derivative * dmul;
 	}
 }
 
@@ -1654,6 +1654,8 @@ public class Rotor {
 	// Depreciated, this is for the old setFromVec
 	public float offset = 0;// radians
 
+	public Program prog;
+
 	public Vector3D direction = Vector3D.Zero;//offset relative to the head
 
 	public string errStr = "";
@@ -1663,6 +1665,7 @@ public class Rotor {
 	public Rotor(IMyMotorStator rotor, Program prog) {
 		this.theBlock = rotor;
 		this.positionController = new PID(1, 0, 0, prog);
+		this.prog = prog;
 	}
 
 	public void setPointDir(Vector3D dir) {
@@ -1679,7 +1682,20 @@ public class Rotor {
 		// Project onto rotor
 		double err = angle.Dot(rotor.WorldMatrix.Up) * errorScale * multiplier;
 
-		// TODO: fit in a PID right here
+
+		PIDContainer vals = prog.checkPID(theBlock.CustomData);
+		if(vals != null) {
+			positionController.pmul = vals.p;
+			positionController.imul = vals.i;
+			positionController.dmul = vals.d;
+			if(vals.newText != null) {
+				theBlock.CustomData = vals.newText;
+			}
+		} else {
+			positionController.pmul = prog.pmul;
+			positionController.imul = prog.imul;
+			positionController.dmul = prog.dmul;
+		}
 		err = positionController.update(err);
 
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
