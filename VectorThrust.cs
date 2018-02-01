@@ -59,7 +59,7 @@ public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
-public const float maxRotorRPM = 60;
+// public const float maxRotorRPM = 60;
 
 // this is used to identify programmable blocks as instances of vector thrust
 // if you change this, you should probably change all those that are going to connect to the same ship, otherwise they will fight for control.
@@ -365,6 +365,10 @@ public void Main(string argument, UpdateType runType) {
 			// Echo(g[i].errStr);
 			g[i].go(jetpack, dampeners, shipMass);
 			total += req.Length();
+
+			float torque = g[i].rotor.theBlock.GetMaximum<float>("Torque");
+			Echo($"Max rotor Torque {torque}");
+
 			// write($"nacelle {i} avail: {g[i].availableThrusters.Count} updates: {g[i].detectThrustCounter}");
 			// write(g[i].errStr);
 			// foreach(Thruster t in g[i].activeThrusters) {
@@ -887,15 +891,16 @@ public class Nacelle {
 
 		// errStr += $"thrustOn: {thrustOn} \n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass), 2)}\n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass*0.01), 2)}";
 
+		Vector3D direction = Vector3D.Zero;
+		if(program.mainController != null) {
+			direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+		} else {
+			direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+		}
+
 		// maybe lerp this in the future
-		if(!thrustOn) {// Zero G
+		if(!thrustOn && false) {// Zero G
 			// errStr += "\nnot much thrust";
-			Vector3D direction = Vector3D.Zero;
-			if(program.mainController != null) {
-				direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
-			} else {
-				direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
-			}
 			if(dampeners) {
 				angleCos = rotor.setFromVec(direction * shipMass + requiredVec);
 			} else {
@@ -906,6 +911,11 @@ public class Nacelle {
 		} else {// In Gravity
 			// errStr += "\nlots of thrust";
 			angleCos = rotor.setFromVec(requiredVec);
+			double pow = 3;
+			double val = Math.Pow(rotor.maxRotorTorque * requiredVec.Length() / totalEffectiveThrust, pow) / Math.Pow(rotor.maxRotorTorque, pow - 1);
+			program.Echo($"rotor torque: ${val}");
+			rotor.theBlock.Torque = (float)val;
+			// rotor.theBlock.Torque = (float)requiredVec.Length();
 			// rotor.setFromVecOld(requiredVec);
 		}
 		// errStr += "\n" + rotor.errStr;
@@ -1180,8 +1190,14 @@ public class Rotor {
 
 	public string errStr = "";
 
+
+	public readonly float maxRotorRPM;
+	public readonly float maxRotorTorque;
+
 	public Rotor(IMyMotorStator rotor) {
 		this.theBlock = rotor;
+		this.maxRotorRPM = rotor.GetMaximum<float>("Velocity");
+		this.maxRotorTorque = rotor.GetMaximum<float>("Torque");
 	}
 
 	public void setPointDir(Vector3D dir) {
@@ -1193,6 +1209,8 @@ public class Rotor {
 	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
 	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection, float multiplier) {
 		double errorScale = Math.PI * maxRotorRPM;
+
+
 
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
