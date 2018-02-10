@@ -642,6 +642,9 @@ public void checkNacelles() {
 		MyShipMass shipmass = cont.CalculateShipMass();
 		if(oldMass == shipmass.BaseMass) {
 			Echo("Mass is the same, everything is good.");
+
+			// they may have changed the screen name to be a VT one
+			getScreens(screens);
 			return;
 		}
 		Echo("Mass is different, checking everything.");
