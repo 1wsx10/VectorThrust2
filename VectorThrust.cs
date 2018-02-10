@@ -1,6 +1,12 @@
 // ALWAYS CHECK FOR UPDATES
 // to update, simply load it from the workshop tab again (no need to actually go to the workshop page)
 
+
+
+
+
+
+
 // weather or not dampeners or thrusters are on when you start the script
 public bool dampeners = true;
 public bool jetpack = false;
@@ -71,6 +77,16 @@ public const string myNameStandby = ".VT.";
 public const float zeroGAcceleration = 9.81f;
 // if gravity becomes less than this, zeroGAcceleration will kick in
 public const float gravCutoff = 0.1f * 9.81f;
+
+
+// PID settings, these effect how the rotor moves to position
+public float pmul = 1f;
+public float imul = 0f;
+public float dmul = 0f;
+public const bool enablePID = true;
+
+// experimental PID setting: I is multiplied by this each tick, so it shouldn't build up as much
+public float idecay = 0.9f;
 
 
 
@@ -228,8 +244,8 @@ public void Main(string argument, UpdateType runType) {
 
 
 
-
 	// ========== PHYSICS ==========
+
 
  	// get gravity in world space
 	Vector3D worldGrav = usableControllers[0].GetNaturalGravity();
@@ -298,6 +314,79 @@ public void Main(string argument, UpdateType runType) {
 	Echo("Required Force: " + $"{Math.Round(requiredVec.Length(),0)}" + "N");
 
 	// ========== END OF PHYSICS ==========
+
+
+
+
+
+
+
+
+
+	// ========== OTHER ==========
+	if(enablePID) {
+
+		bool hasChanged = false;
+
+		if(argument.Contains("pup")) {
+			hasChanged = true;
+			pmul += 0.1f;
+		}
+		if(argument.Contains("pdn")) {
+			hasChanged = true;
+			pmul -= 0.1f;
+		}
+		if(argument.Contains("iup")) {
+			hasChanged = true;
+			imul += 0.1f;
+		}
+		if(argument.Contains("idn")) {
+			hasChanged = true;
+			imul -= 0.1f;
+		}
+		if(argument.Contains("dup")) {
+			hasChanged = true;
+			dmul += 0.1f;
+		}
+		if(argument.Contains("ddn")) {
+			hasChanged = true;
+			dmul -= 0.1f;
+		}
+
+		if(pmul < 0) {
+			pmul *= -1;
+		}
+		if(imul < 0) {
+			imul *= -1;
+		}
+		if(dmul < 0) {
+			dmul *= -1;
+		}
+
+		PIDContainer myPid = null;
+
+		if(hasChanged) {
+			myPid = checkPID(Me.CustomData, pmul, imul, dmul);
+		} else {
+			myPid = checkPID(Me.CustomData);
+		}
+
+		if(myPid != null) {
+			pmul = myPid.p;
+			imul = myPid.i;
+			dmul = myPid.d;
+			if(myPid.newText != null) {
+				Me.CustomData = myPid.newText;
+			}
+		}
+
+		if(Me.CustomData.Contains("ShowOnScreen")) {
+			write($"p: {pmul}");
+			write($"i: {imul}");
+			write($"d: {dmul}");
+		}
+	}
+	// ========== END OF OTHER ==========
 
 
 
@@ -421,9 +510,356 @@ public bool comeFromStandby = false;
 
 
 
-public const string TimName = "%VectorTim";
+
+public class PIDContainer {
+	public string newText;
+	public float p;
+	public float i;
+	public float d;
+}
 
 
+// public PIDContainer checkPID(string customData) {
+// 	return checkPID(customData, null, null, null);
+// }
+
+public PIDContainer checkPID(string customData, float setp = -1, float seti = -1, float setd = -1) {
+
+	string[] lines = customData.Split('\n');
+
+	int markerLine = -1;
+	int pLine = -1;
+	int iLine = -1;
+	int dLine = -1;
+	bool reset_marker = false;
+	bool fixPCaps = false;
+	bool fixICaps = false;
+	bool fixDCaps = false;
+	string first2 = null;
+
+	string pidMarker = "|PID|";
+	string pMarker = "P:";
+	string iMarker = "I:";
+	string dMarker = "D:";
+
+	// this is still O(lines.Length)
+	for(int i = 0; i < lines.Length; i++) {
+		if(lines[i].ToUpper().Contains(pidMarker)) {
+			markerLine = i;
+
+			if(!(lines[i] == pidMarker)) {
+				// reset PID marker
+				reset_marker = true;
+			}
+			// stop looking for "|PID|" and start looking for "P:"
+			for(int j = i + 1; j < lines.Length; j++) {
+				if(lines[j].Length >= 2) {
+					first2 = lines[j].Substring(0, 2);
+				} else {
+					first2 = "";
+				}
+				bool gop = false;
+				if(first2 == pMarker) {
+					gop = true;
+				} else if(first2.ToUpper() == pMarker) {
+					// make p caps
+					fixPCaps = true;
+					gop = true;
+				}
+
+				if(gop) {
+					pLine = j;
+
+					// stop looking for "P:" and start looking for "I:"
+					for(int k = j + 1; k < lines.Length; k++) {
+						if(lines[k].Length >= 2) {
+							first2 = lines[k].Substring(0, 2);
+						} else {
+							first2 = "";
+						}
+						bool goi = false;
+						if(first2 == iMarker) {
+							goi = true;
+						} else if(first2.ToUpper() == iMarker) {
+							// make i caps
+							fixICaps = true;
+							goi = true;
+						}
+
+						if(goi) {
+							iLine = k;
+
+							// stop looking for "I:" and start looking for "D:"
+							for(int l = k + 1; l < lines.Length; l++) {
+								if(lines[l].Length >= 2) {
+									first2 = lines[l].Substring(0, 2);
+								} else {
+									first2 = "";
+								}
+								bool god = false;
+								if(first2 == dMarker) {
+									god = true;
+								} else if(first2.ToUpper() == dMarker) {
+									// make d caps
+									fixDCaps = true;
+									god = true;
+								}
+
+								if(god) {
+									dLine = l;
+
+									// stop looking for "D:"
+									break;
+								}
+							}
+							// stop looking for "I:"
+							break;
+						}
+					}
+					// stop looking for "P:"
+					break;
+				}
+			}
+			// stop looking for "|PID|"
+			break;
+		}
+	}
+
+	if(markerLine == -1) {
+		// no pid settings
+		if(setp == -1 && seti == -1 && setd == -1) {
+			return null;
+		}
+	}
+
+
+
+
+	float p_val = -1;
+	bool reset_p = false;
+	float i_val = -1;
+	bool reset_i = false;
+	float d_val = -1;
+	bool reset_d = false;
+
+
+	try {
+		p_val = (float)Convert.ToDouble(lines[pLine].Substring(2));
+		// no negatives
+		if(p_val < 0) {
+			reset_p = true;
+			p_val *= -1;
+		}
+
+	} catch(Exception e) {
+		// either wrong format or out of float domain or pLine is null
+		reset_p = true;
+		p_val = -1;
+	}
+	try {
+		i_val = (float)Convert.ToDouble(lines[iLine].Substring(2));
+		// no negatives
+		if(i_val < 0) {
+			reset_i = true;
+			i_val *= -1;
+		}
+
+	} catch(Exception e) {
+		// either wrong format or out of float domain or iLine is null
+		reset_i = true;
+		i_val = -1;
+	}
+	try {
+		d_val = (float)Convert.ToDouble(lines[dLine].Substring(2));
+		// no negatives
+		if(d_val < 0) {
+			reset_d = true;
+			d_val *= -1;
+		}
+
+	} catch(Exception e) {
+		// either wrong format or out of float domain or dLine is null
+		reset_d = true;
+		d_val = -1;
+	}
+
+
+	if(setp != -1) {
+		p_val = setp;
+		reset_p = true;
+	}
+	if(seti != -1) {
+		i_val = seti;
+		reset_i = true;
+	}
+	if(setd != -1) {
+		d_val = setd;
+		reset_d = true;
+	}
+
+
+
+
+	// woohoo, don't need regex... here it is anyway
+	// string pattern = "[0-9]*.?[0-9]*";
+	// var matches = System.Text.RegularExpressions.Regex.Matches("10.2 3.7 3", pattern);
+
+
+
+
+	// Echo("End of reading, start writing");
+	// end of reading, now to write
+
+
+
+
+
+	bool consecutive =
+		pLine == markerLine + 1 &&
+		iLine == pLine + 1 &&
+		dLine == iLine + 1;
+
+
+	bool updateText =
+		!consecutive ||
+		fixPCaps ||
+		fixICaps ||
+		fixDCaps ||
+		markerLine == -1 ||
+		pLine == -1 ||
+		iLine == -1 ||
+		dLine == -1 ||
+		reset_marker ||
+		reset_p ||
+		reset_i ||
+		reset_d ||
+		setp != -1 ||
+		seti != -1 ||
+		setd != -1 ||
+		p_val == -1 ||
+		i_val == -1 ||
+		d_val == -1;
+
+
+	PIDContainer outval = new PIDContainer();
+
+	if(updateText) {
+
+		// convert to linked list since we will probably add things in
+		// Echo("convert to linked list since we will probably add things in");
+		List<string> linesList = new List<string>();
+		linesList.Capacity = lines.Length;
+		for(int i = 0; i < lines.Length; i++) {
+			linesList.Add(lines[i]);
+		}
+
+
+		// reset null ones
+		// Echo("reset null ones");
+		if(p_val == -1) {
+			p_val = pmul;
+		}
+		if(i_val == -1) {
+			i_val = imul;
+		}
+		if(d_val == -1) {
+			d_val = dmul;
+		}
+
+
+		// insert missing lines
+		// Echo("insert missing lines");
+		if(markerLine == -1) {
+			markerLine = linesList.Count;
+			linesList.Add(pidMarker);
+		}
+		if(pLine == -1) {
+			pLine = markerLine + 1;
+			linesList.Insert(pLine, $"{pMarker} {p_val}");
+			reset_p = false;
+			fixPCaps = false;
+		}
+		if(iLine == -1) {
+			iLine = pLine + 1;
+			linesList.Insert(iLine, $"{iMarker} {i_val}");
+			reset_i = false;
+			fixICaps = false;
+		}
+		if(dLine == -1) {
+			dLine = iLine + 1;
+			linesList.Insert(dLine, $"{dMarker} {d_val}");
+			reset_d = false;
+			fixDCaps = false;
+		}
+
+
+		// reset syntax errors
+		// Echo("reset syntax errors");
+		if(reset_marker) {
+			linesList[markerLine] = pidMarker;
+			reset_marker = false;
+		}
+		if(reset_p) {
+			linesList[pLine] = $"{pMarker} {p_val}";
+			fixPCaps = false;
+		}
+		if(reset_i) {
+			linesList[iLine] = $"{iMarker} {i_val}";
+			fixICaps = false;
+		}
+		if(reset_d) {
+			linesList[dLine] = $"{dMarker} {d_val}";
+			fixDCaps = false;
+		}
+
+		// fix caps
+		// Echo("fix caps");
+		if(fixPCaps) {
+			linesList[pLine] = linesList[pLine].ToUpper();
+		}
+		if(fixICaps) {
+			linesList[iLine] = linesList[iLine].ToUpper();
+		}
+		if(fixDCaps) {
+			linesList[dLine] = linesList[dLine].ToUpper();
+		}
+
+
+
+
+
+
+		// append all lines into the stringbuilder
+		// Echo("append all lines into the stringbuilder");
+		StringBuilder finalLines = new StringBuilder();
+		string lastLine = null;
+		for(int i = 0; i < linesList.Count; i++) {
+
+			// remove the in-betweeners
+			if(i > markerLine && i < pLine) continue;
+			if(i > pLine && i < iLine) continue;
+			if(i > iLine && i < dLine) continue;
+
+			// add newlines between
+			if(lastLine != null && lastLine.Length != 0 && lastLine[lastLine.Length - 1] != '\n') {
+				finalLines.Append('\n');
+			}
+
+			// append the line
+			finalLines.Append(linesList[i]);
+
+			lastLine = linesList[i];
+		}
+
+		outval.newText = finalLines.ToString();
+	}
+
+	outval.p = p_val;
+	outval.i = i_val;
+	outval.d = d_val;
+
+	return outval;
+}
 
 public void enterStandby() {
 	standby = true;
@@ -782,7 +1218,7 @@ List<Nacelle> getNacelles() {
 
 		// it's not set to not be a nacelle rotor
 		// it's topgrid is not the programmable blocks grid
-		Rotor rotor = new Rotor(current);
+		Rotor rotor = new Rotor(current, this);
 		nacelles.Add(new Nacelle(rotor, this));
 	}
 
@@ -836,6 +1272,48 @@ void displayNacelles(List<Nacelle> nacelles) {
 			Echo($@"{i}: {t.theBlock.CustomName}");
 			i++;
 		}
+	}
+}
+
+public class PID {
+
+	public Program prog;
+
+	public float pmul = 1;
+	public float imul = 0;
+	public float dmul = 0;
+
+	private double lasterror = 0;
+	private double integral = 0;
+
+	public PID(Program prog) {
+		this.prog = prog;
+	}
+
+	public PID(float proportional, float integral, float derivative, Program prog) : this(prog) {
+		this.pmul = proportional;
+		this.imul = integral;
+		this.dmul = derivative;
+	}
+
+	public double update(double setpoint, double measured) {
+		double error = setpoint - measured;
+		return update(error);
+	}
+
+	public double update(double error) {
+		double deltaT = prog.Runtime.TimeSinceLastRun.TotalMilliseconds;
+		deltaT = (deltaT == 0 ? 1 : deltaT);
+
+		integral *= prog.idecay;
+		integral += error/deltaT;
+		double derivative = (error - lasterror) / deltaT;
+
+		// return error * pmul + integral * imul + derivative * dmul;
+		if(!enablePID) {
+			return error;
+		}
+		return error * pmul + integral * imul + -1 * derivative * dmul;
 	}
 }
 
@@ -1179,12 +1657,18 @@ public class Rotor {
 	// Depreciated, this is for the old setFromVec
 	public float offset = 0;// radians
 
+	public Program prog;
+
 	public Vector3D direction = Vector3D.Zero;//offset relative to the head
 
 	public string errStr = "";
 
-	public Rotor(IMyMotorStator rotor) {
+	public PID positionController;
+
+	public Rotor(IMyMotorStator rotor, Program prog) {
 		this.theBlock = rotor;
+		this.positionController = new PID(1, 0, 0, prog);
+		this.prog = prog;
 	}
 
 	public void setPointDir(Vector3D dir) {
@@ -1199,9 +1683,24 @@ public class Rotor {
 
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
-		double err = angle.Dot(rotor.WorldMatrix.Up);
+		double err = angle.Dot(rotor.WorldMatrix.Up) * errorScale * multiplier;
 
-		err *= errorScale * multiplier;
+
+		PIDContainer vals = prog.checkPID(theBlock.CustomData);
+		if(vals != null) {
+			positionController.pmul = vals.p;
+			positionController.imul = vals.i;
+			positionController.dmul = vals.d;
+			if(vals.newText != null) {
+				theBlock.CustomData = vals.newText;
+			}
+		} else {
+			positionController.pmul = prog.pmul;
+			positionController.imul = prog.imul;
+			positionController.dmul = prog.dmul;
+		}
+		err = positionController.update(err);
+
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
 		if (err > maxRotorRPM) {
 			rotor.TargetVelocityRPM = (float)maxRotorRPM;
@@ -1304,6 +1803,8 @@ public class Rotor {
 }
 
 }
+
+
 public static class CustomProgramExtensions {
 
 	public static bool IsAlive(this IMyTerminalBlock block) {
