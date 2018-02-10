@@ -178,10 +178,10 @@ public void Main(string argument, UpdateType runType) {
 		standby = false;
 		comeFromStandby = false;
 		foreach(Nacelle n in nacelles) {
-			n.rotor.theBlock.ApplyAction("OnOff_On");
+			n.rotor.theBlock.Enabled = true;
 			foreach(Thruster t in n.thrusters) {
 				if(t.IsOn) {
-					t.theBlock.ApplyAction("OnOff_On");
+					t.theBlock.Enabled = true;
 				}
 			}
 		}
@@ -429,9 +429,9 @@ public void enterStandby() {
 	standby = true;
 	goToStandby = false;
 	foreach(Nacelle n in nacelles) {
-		n.rotor.theBlock.ApplyAction("OnOff_Off");
+		n.rotor.theBlock.Enabled = false;
 		foreach(Thruster t in n.thrusters) {
-			t.theBlock.ApplyAction("OnOff_Off");
+			t.theBlock.Enabled = false;
 		}
 	}
 	Runtime.UpdateFrequency = UpdateFrequency.None;
@@ -1110,7 +1110,7 @@ public class Nacelle {
 		// }
 
 		foreach(Thruster t in thrusters) {
-			t.theBlock.ApplyAction("OnOff_Off");
+			t.theBlock.Enabled = false;
 			t.IsOn = false;
 		}
 		activeThrusters.Clear();
@@ -1121,7 +1121,7 @@ public class Nacelle {
 			Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
 
 			if(thrDir == thrustForward) {
-				t.theBlock.ApplyAction("OnOff_On");
+				t.theBlock.Enabled = true;
 				t.IsOn = true;
 				activeThrusters.Add(t);
 			}
@@ -1280,7 +1280,7 @@ public class Rotor {
 	// move rotor to the angle (radians), make it go the shortest way possible
 	public void setPos(float x)
 	{
-		theBlock.ApplyAction("OnOff_On");
+		theBlock.Enabled = true;
 		x = cutAngle(x);
 		float velocity = maxRotorRPM;
 		float x2 = cutAngle(theBlock.Angle);
