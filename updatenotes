@@ -1,0 +1,6 @@
+changed onlyMainCockpit to true
+
+added 'cruise' mode
+	active only when dampeners is active
+	will cancel all velocity except forward
+	currently breaks if there is no main cockpit
