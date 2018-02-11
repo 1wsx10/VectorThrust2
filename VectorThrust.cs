@@ -320,19 +320,44 @@ public void Main(string argument, UpdateType runType) {
 				dampVec += shipVelocity.reject(desiredVec.normalized());
 
 				// cancel forward (controller) dampening
-				if(dampVec.dot(mainController.WorldMatrix.Forward) > 0) {
-					dampVec -= dampVec.project(mainController.WorldMatrix.Forward);
+				if(onlyMain()) {
+					if(dampVec.dot(mainController.WorldMatrix.Forward) > 0) {
+						dampVec -= dampVec.project(mainController.WorldMatrix.Forward);
+					}
+				} else {
+					// not only main
+					foreach(IMyShipController cont in usableControllers) {
+						if(!cont.IsUnderControl) continue;
+
+						if(dampVec.dot(cont.WorldMatrix.Forward) > 0) {
+							dampVec -= dampVec.project(cont.WorldMatrix.Forward);
+						}
+					}
 				}
 			} else {
 				// no desiredVec
 
-				// cancel backwards movement
-				if(shipVelocity.dot(mainController.WorldMatrix.Backward) > 0) {
-					// if backward is the same direction as velocity
-					dampVec += shipVelocity.project(mainController.WorldMatrix.Backward);
+				if(onlyMain()) {
+					// cancel backwards movement
+					if(shipVelocity.dot(mainController.WorldMatrix.Backward) > 0) {
+						// if backward is the same direction as velocity
+						dampVec += shipVelocity.project(mainController.WorldMatrix.Backward);
+					}
+					// cancel sideways movement
+					dampVec += shipVelocity.reject(mainController.WorldMatrix.Backward);
+				} else {
+					// not only main
+
+					dampVec = shipVelocity;
+
+					foreach(IMyShipController cont in usableControllers) {
+						if(!cont.IsUnderControl) continue;
+
+						if(dampVec.dot(cont.WorldMatrix.Forward) > 0) {
+							dampVec -= dampVec.project(cont.WorldMatrix.Forward);
+						}
+					}
 				}
-				// cancel sideways movement
-				dampVec += shipVelocity.reject(mainController.WorldMatrix.Backward);
 			}
 
 		} else {
@@ -941,6 +966,13 @@ public void enterStandby() {
 	write("Standing By");
 }
 
+// true: only main cockpit can be used even if there is no one in the main cockpit
+// false: any cockpits can be used, but if there is someone in the main cockpit, it will only obey the main cockpit
+// no main cockpit: any cockpits can be used
+public bool onlyMain() {
+	return mainController != null && (mainController.IsUnderControl || onlyMainCockpit);
+}
+
 public void getScreens(List<IMyTextPanel> screens) {
 	this.screens = screens;
 	usableScreens.Clear();
@@ -995,6 +1027,7 @@ public Vector3D getMovementInput(string arg) {
 		if(!inputs.ContainsKey(dampenersButton)) {
 			dampenersIsPressed = false;
 		}
+
 
 		if(inputs.ContainsKey(cruiseButton) && !cruiseIsPressed) {//cruise key
 			cruise = !cruise;//toggle
@@ -1057,13 +1090,16 @@ public Vector3D getMovementInput(string arg) {
 
 	// dampeners (if there are any normal thrusters, the dampeners control works)
 	if(normalThrusters.Count != 0) {
-		if(onlyMainCockpit || mainController != null && mainController.IsUnderControl) {
+
+		if(onlyMain()) {
+
 			if(changeDampeners) {
 				mainController.DampenersOverride = dampeners;
 			} else {
 				dampeners = mainController.DampenersOverride;
 			}
 		} else {
+
 			// dampeners = false;
 			foreach(IMyShipController cont in controllers) {
 				if(cont.DampenersOverride && cont.IsUnderControl) {
@@ -1077,8 +1113,9 @@ public Vector3D getMovementInput(string arg) {
 		}
 	}
 
+
 	// movement controls
-	if(mainController != null && (mainController.IsUnderControl || onlyMainCockpit)) {
+	if(onlyMain()) {
 		moveVec = mainController.getWorldMoveIndicator();
 	} else {
 		foreach(IMyShipController cont in controllers) {
