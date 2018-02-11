@@ -7,11 +7,18 @@
 
 
 
-// weather or not dampeners or thrusters are on when you start the script
+
+// weather or not dampeners are on when you start the script
 public bool dampeners = true;
+
+// weather or not thrusters are on when you start the script
 public bool jetpack = false;
 
-public bool controlModule = true;
+// weather or not cruise mode is on when you start the script
+public bool cruise = false;
+
+// only use blocks that have 'show in terminal' set to true
+public const bool ignoreHiddenBlocks = false;
 
 // standby stops all calculations and safely turns off all nacelles, good if you want to stop flying
 // but dont want to turn the craft off.
@@ -35,7 +42,7 @@ public const float dampenersModifier = 0.1f;
 // true: only main cockpit can be used even if there is no one in the main cockpit
 // false: any cockpits can be used, but if there is someone in the main cockpit, it will only obey the main cockpit
 // no main cockpit: any cockpits can be used
-public const bool onlyMainCockpit = false;
+public const bool onlyMainCockpit = true;
 
 // choose weather you want the script to update once every frame, once every 10 frames, or once every 100 frames
 // should be 1 of:
@@ -49,6 +56,7 @@ public const string LCDName = "%VectorLCD";
 // arguments, you can change these to change what text you run the programmable block with
 public const string standbyArg = "%standby";
 public const string dampenersArg = "%dampeners";
+public const string cruiseArg = "%cruise";
 public const string jetpackArg = "%jetpack";
 public const string raiseAccelArg = "%raiseAccel";
 public const string lowerAccelArg = "%lowerAccel";
@@ -61,12 +69,14 @@ public const string resetArg = "%reset";//this one re-runs the initial setup... 
 // put that text EXACTLY as it is in the quotes for the control you want
 public const string jetpackButton = "c.thrusts";
 public const string dampenersButton = "c.damping";
+public const string cruiseButton = "";
 public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
 
+// NOT YET IMPLEMENTED
 // this is used to identify programmable blocks as instances of vector thrust
 // if you change this, you should probably change all those that are going to connect to the same ship, otherwise they will fight for control.
 public const string myName = "|VT|";
@@ -117,7 +127,11 @@ public float idecay = 0.9f;
 public const double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
 public const double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
 
+// use control module... this can always be true
+public bool controlModule = true;
 
+// remove unreachable code warning
+#pragma warning disable 0162
 
 public Program() {
 	Echo("Just Compiled");
@@ -135,6 +149,17 @@ public long gotNacellesCount;
 public long updateNacellesCount;
 
 public void Main(string argument, UpdateType runType) {
+
+
+
+
+
+
+
+
+
+
+
 	// ========== STARTUP ==========
 	globalAppend = false;
 
@@ -178,6 +203,7 @@ public void Main(string argument, UpdateType runType) {
 
 	bool anyArg =
 	argument.Contains(dampenersArg.ToLower()) ||
+	argument.Contains(cruiseArg.ToLower()) ||
 	argument.Contains(jetpackArg.ToLower()) ||
 	argument.Contains(standbyArg.ToLower()) ||
 	argument.Contains(raiseAccelArg.ToLower()) ||
@@ -194,10 +220,10 @@ public void Main(string argument, UpdateType runType) {
 		standby = false;
 		comeFromStandby = false;
 		foreach(Nacelle n in nacelles) {
-			n.rotor.theBlock.ApplyAction("OnOff_On");
+			n.rotor.theBlock.Enabled = true;
 			foreach(Thruster t in n.thrusters) {
 				if(t.IsOn) {
-					t.theBlock.ApplyAction("OnOff_On");
+					t.theBlock.Enabled = true;
 				}
 			}
 		}
@@ -280,17 +306,51 @@ public void Main(string argument, UpdateType runType) {
 
 	if(dampeners) {
 		Vector3D dampVec = Vector3D.Zero;
-		if(desiredVec != Vector3D.Zero) {
-			// cancel backwards movement
-			if(desiredVec.dot(shipVelocity) < 0) {
-				//if you want to go oppisite to velocity
-				dampVec = shipVelocity.project(desiredVec.normalized());
+
+		if(cruise) {
+			// cruise dampeners
+
+			if(desiredVec != Vector3D.Zero) {
+				// cancel movement opposite to desired movement direction
+				if(desiredVec.dot(shipVelocity) < 0) {
+					//if you want to go oppisite to velocity
+					dampVec += shipVelocity.project(desiredVec.normalized());
+				}
+				// cancel sideways movement
+				dampVec += shipVelocity.reject(desiredVec.normalized());
+
+				// cancel forward (controller) dampening
+				if(dampVec.dot(mainController.WorldMatrix.Forward) > 0) {
+					dampVec -= dampVec.project(mainController.WorldMatrix.Forward);
+				}
+			} else {
+				// no desiredVec
+
+				// cancel backwards movement
+				if(shipVelocity.dot(mainController.WorldMatrix.Backward) > 0) {
+					// if backward is the same direction as velocity
+					dampVec += shipVelocity.project(mainController.WorldMatrix.Backward);
+				}
+				// cancel sideways movement
+				dampVec += shipVelocity.reject(mainController.WorldMatrix.Backward);
 			}
-			// cancel sideways movement
-			dampVec += shipVelocity.reject(desiredVec.normalized());
+
 		} else {
-			// no desiredVec, just use shipVelocity
-			dampVec = shipVelocity;
+			// normal dampeners
+
+			if(desiredVec != Vector3D.Zero) {
+				// cancel backwards movement
+				if(desiredVec.dot(shipVelocity) < 0) {
+					//if you want to go oppisite to velocity
+					dampVec += shipVelocity.project(desiredVec.normalized());
+				}
+				// cancel sideways movement
+				dampVec += shipVelocity.reject(desiredVec.normalized());
+			} else {
+				// no desiredVec, just use shipVelocity
+				dampVec = shipVelocity;
+			}
+
 		}
 		desiredVec -= dampVec * dampenersModifier;
 	}
@@ -463,9 +523,13 @@ public void Main(string argument, UpdateType runType) {
 	}/* end of TODO */
 	Echo("Total Force: " + $"{Math.Round(total,0)}" + "N");
 
+
+
+
 	write("Target Accel: " + Math.Round(getAcceleration(gravLength)/gravLength, 2) + "g");
 	write("Thrusters: " + jetpack);
 	write("Dampeners: " + dampeners);
+	write("Cruise: " + cruise);
 	write("Active Nacelles: " + nacelles.Count);//TODO: make activeNacelles account for the number of nacelles that are actually active (activeThrusters.Count > 0)
 	// write("Got Nacelles: " + gotNacellesCount);
 	// write("Update Nacelles: " + updateNacellesCount);
@@ -477,6 +541,7 @@ public int accelExponent = 0;
 
 public bool jetpackIsPressed = false;
 public bool dampenersIsPressed = false;
+public bool cruiseIsPressed = false;
 public bool plusIsPressed = false;
 public bool minusIsPressed = false;
 
@@ -865,9 +930,9 @@ public void enterStandby() {
 	standby = true;
 	goToStandby = false;
 	foreach(Nacelle n in nacelles) {
-		n.rotor.theBlock.ApplyAction("OnOff_Off");
+		n.rotor.theBlock.Enabled = false;
 		foreach(Thruster t in n.thrusters) {
-			t.theBlock.ApplyAction("OnOff_Off");
+			t.theBlock.Enabled = false;
 		}
 	}
 	Runtime.UpdateFrequency = UpdateFrequency.None;
@@ -930,6 +995,15 @@ public Vector3D getMovementInput(string arg) {
 		if(!inputs.ContainsKey(dampenersButton)) {
 			dampenersIsPressed = false;
 		}
+
+		if(inputs.ContainsKey(cruiseButton) && !cruiseIsPressed) {//cruise key
+			cruise = !cruise;//toggle
+			cruiseIsPressed = true;
+		}
+		if(!inputs.ContainsKey(cruiseButton)) {
+			cruiseIsPressed = false;
+		}
+
 		if(inputs.ContainsKey(jetpackButton) && !jetpackIsPressed) {//jetpack key
 			jetpack = !jetpack;//toggle
 			jetpackIsPressed = true;
@@ -937,6 +1011,7 @@ public Vector3D getMovementInput(string arg) {
 		if(!inputs.ContainsKey(jetpackButton)) {
 			jetpackIsPressed = false;
 		}
+
 		if(inputs.ContainsKey(raiseAccel) && !plusIsPressed) {//throttle up
 			accelExponent++;
 			plusIsPressed = true;
@@ -952,7 +1027,8 @@ public Vector3D getMovementInput(string arg) {
 		if(!inputs.ContainsKey(lowerAccel)) { //lower target acceleration
 			minusIsPressed = false;
 		}
-		if(inputs.ContainsKey(resetAccel)) { //default throttle
+
+		if(inputs.ContainsKey(resetAccel)) { //default target acceleration
 			accelExponent = 0;
 		}
 
@@ -962,6 +1038,9 @@ public Vector3D getMovementInput(string arg) {
 	if(arg.Contains(dampenersArg.ToLower())) {
 		dampeners = !dampeners;
 		changeDampeners	= true;
+	}
+	if(arg.Contains(cruiseArg.ToLower())) {
+		cruise = !cruise;
 	}
 	if(arg.Contains(jetpackArg.ToLower())) {
 		jetpack = !jetpack;
@@ -1028,7 +1107,7 @@ bool getControllers(List<IMyShipController> blocks) {
 	for(int i = 0; i < blocks.Count; i++) {
 		bool canAdd = true;
 		reason += blocks[i].CustomName + "\n";
-		if(!blocks[i].ShowInTerminal) {
+		if(!blocks[i].ShowInTerminal && ignoreHiddenBlocks) {
 			reason += "  ShowInTerminal not set\n";
 			canAdd = false;
 		}
@@ -1456,7 +1535,7 @@ public class Nacelle {
 		errStr += "validating thrusters: (jetpack {jetpack})\n";
 		foreach(Thruster curr in thrusters) {
 
-			bool shownAndFunctional = curr.theBlock.ShowInTerminal && curr.theBlock.IsFunctional;
+			bool shownAndFunctional = (curr.theBlock.ShowInTerminal || !ignoreHiddenBlocks) && curr.theBlock.IsFunctional;
 			if(availableThrusters.Contains(curr)) {//is available
 				errStr += "in available thrusters\n";
 
@@ -1474,7 +1553,9 @@ public class Nacelle {
 
 			} else {//not available
 				errStr += "not in available thrusters\n";
-				errStr += $"ShowInTerminal {curr.theBlock.ShowInTerminal}\n";
+				if(ignoreHiddenBlocks) {
+					errStr += $"ShowInTerminal {curr.theBlock.ShowInTerminal}\n";
+				}
 				errStr += $"IsWorking {curr.theBlock.IsWorking}\n";
 				errStr += $"IsFunctional {curr.theBlock.IsFunctional}\n";
 
@@ -1588,7 +1669,7 @@ public class Nacelle {
 		// }
 
 		foreach(Thruster t in thrusters) {
-			t.theBlock.ApplyAction("OnOff_Off");
+			t.theBlock.Enabled = false;
 			t.IsOn = false;
 		}
 		activeThrusters.Clear();
@@ -1599,7 +1680,7 @@ public class Nacelle {
 			Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
 
 			if(thrDir == thrustForward) {
-				t.theBlock.ApplyAction("OnOff_On");
+				t.theBlock.Enabled = true;
 				t.IsOn = true;
 				activeThrusters.Add(t);
 			}
@@ -1779,7 +1860,7 @@ public class Rotor {
 	// move rotor to the angle (radians), make it go the shortest way possible
 	public void setPos(float x)
 	{
-		theBlock.ApplyAction("OnOff_On");
+		theBlock.Enabled = true;
 		x = cutAngle(x);
 		float velocity = maxRotorRPM;
 		float x2 = cutAngle(theBlock.Angle);
