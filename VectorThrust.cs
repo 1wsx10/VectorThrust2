@@ -5,7 +5,8 @@
 public bool dampeners = true;
 public bool jetpack = false;
 
-public bool controlModule = true;
+// only use blocks that have 'show in terminal' set to true
+public const bool ignoreHiddenBlocks = false;
 
 // standby stops all calculations and safely turns off all nacelles, good if you want to stop flying
 // but dont want to turn the craft off.
@@ -61,6 +62,7 @@ public const string resetAccel = "0";
 
 public const float maxRotorRPM = 60;
 
+// NOT YET IMPLEMENTED
 // this is used to identify programmable blocks as instances of vector thrust
 // if you change this, you should probably change all those that are going to connect to the same ship, otherwise they will fight for control.
 public const string myName = "|VT|";
@@ -101,7 +103,11 @@ public const float gravCutoff = 0.1f * 9.81f;
 public const double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
 public const double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
 
+// use control module... this can always be true
+public bool controlModule = true;
 
+// remove unreachable code warning
+#pragma warning disable 0162
 
 public Program() {
 	Echo("Just Compiled");
@@ -119,6 +125,17 @@ public long gotNacellesCount;
 public long updateNacellesCount;
 
 public void Main(string argument, UpdateType runType) {
+
+
+
+
+
+
+
+
+
+
+
 	// ========== STARTUP ==========
 	globalAppend = false;
 
@@ -592,7 +609,7 @@ bool getControllers(List<IMyShipController> blocks) {
 	for(int i = 0; i < blocks.Count; i++) {
 		bool canAdd = true;
 		reason += blocks[i].CustomName + "\n";
-		if(!blocks[i].ShowInTerminal) {
+		if(!blocks[i].ShowInTerminal && ignoreHiddenBlocks) {
 			reason += "  ShowInTerminal not set\n";
 			canAdd = false;
 		}
@@ -978,7 +995,7 @@ public class Nacelle {
 		errStr += "validating thrusters: (jetpack {jetpack})\n";
 		foreach(Thruster curr in thrusters) {
 
-			bool shownAndFunctional = curr.theBlock.ShowInTerminal && curr.theBlock.IsFunctional;
+			bool shownAndFunctional = (curr.theBlock.ShowInTerminal || !ignoreHiddenBlocks) && curr.theBlock.IsFunctional;
 			if(availableThrusters.Contains(curr)) {//is available
 				errStr += "in available thrusters\n";
 
@@ -996,7 +1013,9 @@ public class Nacelle {
 
 			} else {//not available
 				errStr += "not in available thrusters\n";
-				errStr += $"ShowInTerminal {curr.theBlock.ShowInTerminal}\n";
+				if(ignoreHiddenBlocks) {
+					errStr += $"ShowInTerminal {curr.theBlock.ShowInTerminal}\n";
+				}
 				errStr += $"IsWorking {curr.theBlock.IsWorking}\n";
 				errStr += $"IsFunctional {curr.theBlock.IsFunctional}\n";
 
