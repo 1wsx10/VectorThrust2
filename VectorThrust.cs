@@ -1,9 +1,14 @@
 // ALWAYS CHECK FOR UPDATES
 // to update, simply load it from the workshop tab again (no need to actually go to the workshop page)
 
-// weather or not dampeners or thrusters are on when you start the script
+// weather or not dampeners are on when you start the script
 public bool dampeners = true;
+
+// weather or not thrusters are on when you start the script
 public bool jetpack = false;
+
+// weather or not cruise mode is on when you start the script
+public bool cruise = false;
 
 // only use blocks that have 'show in terminal' set to true
 public const bool ignoreHiddenBlocks = false;
@@ -30,7 +35,7 @@ public const float dampenersModifier = 0.1f;
 // true: only main cockpit can be used even if there is no one in the main cockpit
 // false: any cockpits can be used, but if there is someone in the main cockpit, it will only obey the main cockpit
 // no main cockpit: any cockpits can be used
-public const bool onlyMainCockpit = false;
+public const bool onlyMainCockpit = true;
 
 // choose weather you want the script to update once every frame, once every 10 frames, or once every 100 frames
 // should be 1 of:
@@ -44,6 +49,7 @@ public const string LCDName = "%VectorLCD";
 // arguments, you can change these to change what text you run the programmable block with
 public const string standbyArg = "%standby";
 public const string dampenersArg = "%dampeners";
+public const string cruiseArg = "%cruise";
 public const string jetpackArg = "%jetpack";
 public const string raiseAccelArg = "%raiseAccel";
 public const string lowerAccelArg = "%lowerAccel";
@@ -56,6 +62,7 @@ public const string resetArg = "%reset";//this one re-runs the initial setup... 
 // put that text EXACTLY as it is in the quotes for the control you want
 public const string jetpackButton = "c.thrusts";
 public const string dampenersButton = "c.damping";
+public const string cruiseButton = "";
 public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
@@ -179,6 +186,7 @@ public void Main(string argument, UpdateType runType) {
 
 	bool anyArg =
 	argument.Contains(dampenersArg.ToLower()) ||
+	argument.Contains(cruiseArg.ToLower()) ||
 	argument.Contains(jetpackArg.ToLower()) ||
 	argument.Contains(standbyArg.ToLower()) ||
 	argument.Contains(raiseAccelArg.ToLower()) ||
@@ -281,17 +289,51 @@ public void Main(string argument, UpdateType runType) {
 
 	if(dampeners) {
 		Vector3D dampVec = Vector3D.Zero;
-		if(desiredVec != Vector3D.Zero) {
-			// cancel backwards movement
-			if(desiredVec.dot(shipVelocity) < 0) {
-				//if you want to go oppisite to velocity
-				dampVec = shipVelocity.project(desiredVec.normalized());
+
+		if(cruise) {
+			// cruise dampeners
+
+			if(desiredVec != Vector3D.Zero) {
+				// cancel movement opposite to desired movement direction
+				if(desiredVec.dot(shipVelocity) < 0) {
+					//if you want to go oppisite to velocity
+					dampVec += shipVelocity.project(desiredVec.normalized());
+				}
+				// cancel sideways movement
+				dampVec += shipVelocity.reject(desiredVec.normalized());
+
+				// cancel forward (controller) dampening
+				if(dampVec.dot(mainController.WorldMatrix.Forward) > 0) {
+					dampVec -= dampVec.project(mainController.WorldMatrix.Forward);
+				}
+			} else {
+				// no desiredVec
+
+				// cancel backwards movement
+				if(shipVelocity.dot(mainController.WorldMatrix.Backward) > 0) {
+					// if backward is the same direction as velocity
+					dampVec += shipVelocity.project(mainController.WorldMatrix.Backward);
+				}
+				// cancel sideways movement
+				dampVec += shipVelocity.reject(mainController.WorldMatrix.Backward);
 			}
-			// cancel sideways movement
-			dampVec += shipVelocity.reject(desiredVec.normalized());
+
 		} else {
-			// no desiredVec, just use shipVelocity
-			dampVec = shipVelocity;
+			// normal dampeners
+
+			if(desiredVec != Vector3D.Zero) {
+				// cancel backwards movement
+				if(desiredVec.dot(shipVelocity) < 0) {
+					//if you want to go oppisite to velocity
+					dampVec += shipVelocity.project(desiredVec.normalized());
+				}
+				// cancel sideways movement
+				dampVec += shipVelocity.reject(desiredVec.normalized());
+			} else {
+				// no desiredVec, just use shipVelocity
+				dampVec = shipVelocity;
+			}
+
 		}
 		desiredVec -= dampVec * dampenersModifier;
 	}
@@ -391,9 +433,13 @@ public void Main(string argument, UpdateType runType) {
 	}/* end of TODO */
 	Echo("Total Force: " + $"{Math.Round(total,0)}" + "N");
 
+
+
+
 	write("Target Accel: " + Math.Round(getAcceleration(gravLength)/gravLength, 2) + "g");
 	write("Thrusters: " + jetpack);
 	write("Dampeners: " + dampeners);
+	write("Cruise: " + cruise);
 	write("Active Nacelles: " + nacelles.Count);//TODO: make activeNacelles account for the number of nacelles that are actually active (activeThrusters.Count > 0)
 	// write("Got Nacelles: " + gotNacellesCount);
 	// write("Update Nacelles: " + updateNacellesCount);
@@ -405,6 +451,7 @@ public int accelExponent = 0;
 
 public bool jetpackIsPressed = false;
 public bool dampenersIsPressed = false;
+public bool cruiseIsPressed = false;
 public bool plusIsPressed = false;
 public bool minusIsPressed = false;
 
@@ -511,6 +558,15 @@ public Vector3D getMovementInput(string arg) {
 		if(!inputs.ContainsKey(dampenersButton)) {
 			dampenersIsPressed = false;
 		}
+
+		if(inputs.ContainsKey(cruiseButton) && !cruiseIsPressed) {//cruise key
+			cruise = !cruise;//toggle
+			cruiseIsPressed = true;
+		}
+		if(!inputs.ContainsKey(cruiseButton)) {
+			cruiseIsPressed = false;
+		}
+
 		if(inputs.ContainsKey(jetpackButton) && !jetpackIsPressed) {//jetpack key
 			jetpack = !jetpack;//toggle
 			jetpackIsPressed = true;
@@ -518,6 +574,7 @@ public Vector3D getMovementInput(string arg) {
 		if(!inputs.ContainsKey(jetpackButton)) {
 			jetpackIsPressed = false;
 		}
+
 		if(inputs.ContainsKey(raiseAccel) && !plusIsPressed) {//throttle up
 			accelExponent++;
 			plusIsPressed = true;
@@ -533,7 +590,8 @@ public Vector3D getMovementInput(string arg) {
 		if(!inputs.ContainsKey(lowerAccel)) { //lower target acceleration
 			minusIsPressed = false;
 		}
-		if(inputs.ContainsKey(resetAccel)) { //default throttle
+
+		if(inputs.ContainsKey(resetAccel)) { //default target acceleration
 			accelExponent = 0;
 		}
 
@@ -543,6 +601,9 @@ public Vector3D getMovementInput(string arg) {
 	if(arg.Contains(dampenersArg.ToLower())) {
 		dampeners = !dampeners;
 		changeDampeners	= true;
+	}
+	if(arg.Contains(cruiseArg.ToLower())) {
+		cruise = !cruise;
 	}
 	if(arg.Contains(jetpackArg.ToLower())) {
 		jetpack = !jetpack;
