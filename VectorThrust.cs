@@ -69,7 +69,7 @@ public const string resetArg = "%reset";//this one re-runs the initial setup... 
 // put that text EXACTLY as it is in the quotes for the control you want
 public const string jetpackButton = "c.thrusts";
 public const string dampenersButton = "c.damping";
-public const string cruiseButton = "";
+public const string cruiseButton = "c.cubesizemode";
 public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
