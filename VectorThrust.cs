@@ -22,7 +22,7 @@ public const bool ignoreHiddenBlocks = false;
 
 // standby stops all calculations and safely turns off all nacelles, good if you want to stop flying
 // but dont want to turn the craft off.
-public bool startInStandby = true;
+public const bool startInStandby = true;
 // change this is you don't want the script to start in standby... please only use this if you have permission from the server owner
 
 public const float defaultAccel = 1f;//this is the default target acceleration you see on the display
@@ -194,6 +194,7 @@ public void Main(string argument, UpdateType runType) {
 	// valid_argument_updates |= UpdateType.Update10;
 	// valid_argument_updates |= UpdateType.Update100;
 	if((runType & valid_argument_updates) == UpdateType.None) {
+		// runtype is not one that is allowed to give arguments
 		argument = "";
 	}
 
@@ -228,9 +229,11 @@ public void Main(string argument, UpdateType runType) {
 			}
 		}
 		Runtime.UpdateFrequency = update_frequency;
+	} else {
+		Echo("Normal Running");
 	}
 
-	if(argument.Contains(resetArg.ToLower()) || controllers.Count == 0 /*|| timer == null*/ || justCompiled) {
+	if(argument.Contains(resetArg.ToLower()) || controllers.Count == 0 || justCompiled) {
 		if(!init()) {
 			return;
 		}
@@ -258,6 +261,12 @@ public void Main(string argument, UpdateType runType) {
 			goToStandby = true;
 			return;
 		}
+	}
+
+	if(standby) {
+		Echo("Standing By");
+		write("Standing By");
+		return;
 	}
 
 	// ========== END OF STARTUP ==========
@@ -591,7 +600,7 @@ public int programBlockCount = 0;
 
 
 public bool updateNacelles = false;
-public bool standby = false;
+public bool standby = startInStandby;
 public Vector3D shipVelocity = Vector3D.Zero;
 
 public bool justCompiled = true;
