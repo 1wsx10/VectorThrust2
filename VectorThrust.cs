@@ -1433,6 +1433,7 @@ public class PID {
 		integral *= prog.idecay;
 		integral += error/deltaT;
 		double derivative = (error - lasterror) / deltaT;
+		lasterror = error;
 
 		// return error * pmul + integral * imul + derivative * dmul;
 		if(!enablePID) {
