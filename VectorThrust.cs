@@ -10,6 +10,9 @@ public bool jetpack = false;
 // weather or not cruise mode is on when you start the script
 public bool cruise = false;
 
+// make cruise mode act more like an airplane
+public const bool cruisePlane = false;
+
 // only use blocks that have 'show in terminal' set to true
 public const bool ignoreHiddenBlocks = false;
 
@@ -291,90 +294,52 @@ public void Main(string argument, UpdateType runType) {
 
 	Vector3D desiredVec = getMovementInput(argument);
 
-	//safety, dont go over max speed DEPRECATED (SE no longer has safety-lock so this is no longer needed)
-	/*if(shipVelocity.Length() > speedLimit) {
-		desiredVec -= shipVelocity;
-	}*/
+	// f=ma
+	Vector3D shipWeight = shipMass * worldGrav;
+
+
 
 	if(dampeners) {
 		Vector3D dampVec = Vector3D.Zero;
 
-		if(cruise) {
-			// cruise dampeners
 
-			if(desiredVec != Vector3D.Zero) {
-				// cancel movement opposite to desired movement direction
-				if(desiredVec.dot(shipVelocity) < 0) {
-					//if you want to go oppisite to velocity
-					dampVec += shipVelocity.project(desiredVec.normalized());
-				}
-				// cancel sideways movement
-				dampVec += shipVelocity.reject(desiredVec.normalized());
-
-				// cancel forward (controller) dampening
-				if(onlyMain()) {
-					if(dampVec.dot(mainController.WorldMatrix.Forward) > 0) {
-						dampVec -= dampVec.project(mainController.WorldMatrix.Forward);
-					}
-				} else {
-					// not only main
-					foreach(IMyShipController cont in usableControllers) {
-						if(!cont.IsUnderControl) continue;
-
-						if(dampVec.dot(cont.WorldMatrix.Forward) > 0) {
-							dampVec -= dampVec.project(cont.WorldMatrix.Forward);
-						}
-					}
-				}
-			} else {
-				// no desiredVec
-
-				if(onlyMain()) {
-					// cancel backwards movement
-					if(shipVelocity.dot(mainController.WorldMatrix.Backward) > 0) {
-						// if backward is the same direction as velocity
-						dampVec += shipVelocity.project(mainController.WorldMatrix.Backward);
-					}
-					// cancel sideways movement
-					dampVec += shipVelocity.reject(mainController.WorldMatrix.Backward);
-				} else {
-					// not only main
-
-					dampVec = shipVelocity;
-
-					foreach(IMyShipController cont in usableControllers) {
-						if(!cont.IsUnderControl) continue;
-
-						if(dampVec.dot(cont.WorldMatrix.Forward) > 0) {
-							dampVec -= dampVec.project(cont.WorldMatrix.Forward);
-						}
-					}
-				}
+		if(desiredVec != Vector3D.Zero) {
+			// cancel movement opposite to desired movement direction
+			if(desiredVec.dot(shipVelocity) < 0) {
+				//if you want to go oppisite to velocity
+				dampVec += shipVelocity.project(desiredVec.normalized());
 			}
-
+			// cancel sideways movement
+			dampVec += shipVelocity.reject(desiredVec.normalized());
 		} else {
-			// normal dampeners
-
-			if(desiredVec != Vector3D.Zero) {
-				// cancel backwards movement
-				if(desiredVec.dot(shipVelocity) < 0) {
-					//if you want to go oppisite to velocity
-					dampVec += shipVelocity.project(desiredVec.normalized());
-				}
-				// cancel sideways movement
-				dampVec += shipVelocity.reject(desiredVec.normalized());
-			} else {
-				// no desiredVec, just use shipVelocity
-				dampVec = shipVelocity;
-			}
-
+			dampVec += shipVelocity;
 		}
+
+
+
+		if(cruise) {
+
+			foreach(IMyShipController cont in usableControllers) {
+				if(onlyMain() && cont != mainController) continue;
+				if(!cont.IsUnderControl) continue;
+
+
+				if(dampVec.dot(cont.WorldMatrix.Forward) > 0 || cruisePlane) { // only front, or front+back if cruisePlane is activated
+					dampVec -= dampVec.project(cont.WorldMatrix.Forward);
+				}
+
+				if(cruisePlane) {
+					shipWeight -= shipWeight.project(cont.WorldMatrix.Forward);
+				}
+			}
+		}
+
+
 		desiredVec -= dampVec * dampenersModifier;
 	}
 
 
-	// f=ma
-	Vector3D shipWeight = shipMass * worldGrav;
+
 	// f=ma
 	desiredVec *= shipMass * (float)getAcceleration(gravLength);
 
