@@ -18,7 +18,7 @@ public bool jetpack = false;
 public bool cruise = false;
 
 // make cruise mode act more like an airplane
-public const bool cruisePlane = true;
+public const bool cruisePlane = false;
 
 // only use blocks that have 'show in terminal' set to true
 public const bool ignoreHiddenBlocks = false;
