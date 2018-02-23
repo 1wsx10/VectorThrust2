@@ -282,8 +282,7 @@ public void Main(string argument, UpdateType runType) {
 
 	if(myShipMass.BaseMass == 0) {
 		Echo("Can't fly a Station");
-		enterStandby();
-		return;
+		shipMass = 1;
 	}
 
 	// setup gravity
