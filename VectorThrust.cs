@@ -21,6 +21,9 @@ public const bool ignoreHiddenBlocks = false;
 public const bool startInStandby = true;
 // change this is you don't want the script to start in standby... please only use this if you have permission from the server owner
 
+// set to -1 for the fastest speed in the game (changes with mods)
+public float maxRotorRPM = 60f;
+
 public const float defaultAccel = 1f;//this is the default target acceleration you see on the display
 // if you want to change the default, change this
 // note, values higher than 1 will mean your nacelles will face the ground when you want to go
@@ -69,8 +72,6 @@ public const string cruiseButton = "c.cubesizemode";
 public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
-
-public const float maxRotorRPM = 60;
 
 // NOT YET IMPLEMENTED
 // this is used to identify programmable blocks as instances of vector thrust
@@ -1275,6 +1276,11 @@ public class Rotor {
 
 	public Rotor(IMyMotorStator rotor) {
 		this.theBlock = rotor;
+
+
+		if(maxRotorRPM <= 0) {
+			maxRotorRPM	= rotor.GetMaximum<float>("Velocity");
+		}
 	}
 
 	public void setPointDir(Vector3D dir) {
