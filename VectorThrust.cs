@@ -79,9 +79,9 @@ public const float maxRotorRPM = 60;
 // if you change this, you should probably change all those that are going to connect to the same ship, otherwise they will fight for control.
 public const string myName = "VT";
 // normal: |VT|
-public const char activeSurround = '|';
+public const string activeSurround = "|";
 // standby: .VT.
-public const char standbySurround = '.';
+public const string standbySurround = ".";
 
 
 // default acceleration in situations with 0 (or low) gravity
@@ -189,6 +189,7 @@ public void Main(string argument, UpdateType runType) {
 		// runtype is not one that is allowed to give arguments
 		argument = "";
 	}
+	Echo("Greedy: " + this.greedy);
 
 	// Echo("Starting Main");
 	argument = argument.ToLower();
@@ -224,15 +225,28 @@ public void Main(string argument, UpdateType runType) {
 	}
 
 
-	this.applyTags = argument.Contains(applyTags);
-	this.removeTags = !this.applyTags && argument.Contains(removeTags);
+
+	//tags and getting blocks
+	this.applyTags = argument.Contains(Program.applyTagsArg.ToLower());
+	this.removeTags = !this.applyTags && argument.Contains(Program.removeTagsArg.ToLower());
 	// switch on: removeTags
 	// switch off: applyTags
 	this.greedy = (!this.applyTags && this.greedy) || this.removeTags;
 	// this automatically calls getNacelles() as needed, and passes in previous GTS data
-	checkNacelles();
+	if(this.applyTags) {
+		addTag(Me);
+	} else if(this.removeTags) {
+		removeTag(Me);
+	}
+	if(!checkNacelles()) {
+		Echo("Setup failed, stopping.");
+		return;
+	}
 	this.applyTags = false;
 	this.removeTags = false;
+
+
+
 
 	if(justCompiled) {
 		justCompiled = false;
@@ -497,6 +511,8 @@ public bool greedy = true;
 public void enterStandby() {
 	standby = true;
 	goToStandby = false;
+
+	//set status of blocks
 	foreach(Nacelle n in nacelles) {
 		n.rotor.theBlock.Enabled = false;
 		standbyTag(n.rotor.theBlock);
@@ -505,6 +521,14 @@ public void enterStandby() {
 			standbyTag(t.theBlock);
 		}
 	}
+	foreach(IMyTextPanel screen in usableScreens) {
+		standbyTag(screen);
+	}
+	foreach(IMyShipController cont in usableControllers) {
+		standbyTag(cont);
+	}
+	standbyTag(Me);
+
 	Runtime.UpdateFrequency = UpdateFrequency.None;
 
 	Echo("Standing By");
@@ -514,6 +538,8 @@ public void enterStandby() {
 public void exitStandby() {
 	standby = false;
 	comeFromStandby = false;
+
+	//set status of blocks
 	foreach(Nacelle n in nacelles) {
 		n.rotor.theBlock.Enabled = true;
 		activeTag(n.rotor.theBlock);
@@ -524,6 +550,14 @@ public void exitStandby() {
 			activeTag(t.theBlock);
 		}
 	}
+	foreach(IMyTextPanel screen in usableScreens) {
+		activeTag(screen);
+	}
+	foreach(IMyShipController cont in usableControllers) {
+		activeTag(cont);
+	}
+	activeTag(Me);
+
 	Runtime.UpdateFrequency = update_frequency;
 }
 
@@ -559,8 +593,8 @@ public void addTag(IMyTerminalBlock block) {
 }
 
 public void removeTag(IMyTerminalBlock block) {
-	block.CustomName = block.CustomName.Remove(tag);
-	block.CustomName = block.CustomName.Remove(offtag);
+	block.CustomName = block.CustomName.Replace(tag, "").Trim();
+	block.CustomName = block.CustomName.Replace(offtag, "").Trim();
 }
 
 public void standbyTag(IMyTerminalBlock block) {
@@ -760,39 +794,42 @@ bool getControllers(List<IMyShipController> blocks) {
 	string reason = "";
 	for(int i = 0; i < blocks.Count; i++) {
 		bool canAdd = true;
-		reason += blocks[i].CustomName + "\n";
+		string currreason = blocks[i].CustomName + "\n";
 		if(!blocks[i].ShowInTerminal && ignoreHiddenBlocks) {
-			reason += "  ShowInTerminal not set\n";
+			currreason += "  ShowInTerminal not set\n";
 			canAdd = false;
 		}
 		if(!blocks[i].CanControlShip) {
-			reason += "  CanControlShip not set\n";
+			currreason += "  CanControlShip not set\n";
 			canAdd = false;
 		}
 		if(!blocks[i].ControlThrusters) {
-			reason += "  can't ControlThrusters\n";
+			currreason += "  can't ControlThrusters\n";
 			canAdd = false;
 		}
 		if(blocks[i].IsMainCockpit) {
 			mainController = blocks[i];
 		}
 		if(!(greedy || hasTag(blocks[i]))) {
+			currreason += "  Doesn't match my tag\n";
 			canAdd = false;
 		}
 		if(this.removeTags) {
-			removeTag(screen);
+			removeTag(blocks[i]);
 		}
 
 		if(canAdd) {
 			usableControllers.Add(blocks[i]);
 			if(this.applyTags) {
-				addTag(screen);
+				addTag(blocks[i]);
 			}
+		} else {
+			reason += currreason + "\n";
 		}
 	}
 
 	if(usableControllers.Count == 0) {
-		Echo("ERROR: no usable ship controller found");
+		Echo("ERROR: no usable ship controller found. Reason: \n");
 		Echo(reason);
 		return false;
 	}
@@ -812,23 +849,25 @@ public IMyShipController findACockpit() {
 }
 
 // checks to see if the nacelles have changed
-public void checkNacelles() {
+public bool checkNacelles() {
 	var blocks = new List<IMyTerminalBlock>();
 	Echo("Checking Nacelles..");
 
+	bool greedy = this.applyTags || this.removeTags;
+
 	IMyShipController cont = findACockpit();
-	if(cont != null) {
+	if(cont != null && !greedy) {
 		MyShipMass shipmass = cont.CalculateShipMass();
 		if(this.oldMass == shipmass.BaseMass) {
 			Echo("Mass is the same, everything is good.");
 
 			// they may have changed the screen name to be a VT one
 			getScreens(this.screens);
-			return;
+			return true;
 		}
 		Echo("Mass is different, checking everything.");
 		this.oldMass = shipmass.BaseMass;
-	} else {
+	} else if(!greedy) {
 		Echo("No cockpit registered, checking everything.");
 	}
 
@@ -858,19 +897,22 @@ public void checkNacelles() {
 	}
 
 
+
 	bool updateNacelles = false;
 
-
 	// if you use the following if statement, it won't lock the non-main cockpit if someone sets the main cockpit, until a recompile or world load :/
-	if(/*(mainController != null ? !mainController.IsMainCockpit : false) || */controllers.Count != conts.Count) {
+	if(/*(mainController != null ? !mainController.IsMainCockpit : false) || */controllers.Count != conts.Count || cont == null || greedy) {
 		Echo($"Controller count ({controllers.Count}) is out of whack (current: {conts.Count})");
-		getControllers(conts);
+		if(!getControllers(conts)) {
+			return false;
+		}
 	}
 
-	if(screenCount != txts.Count) {
+	if(screenCount != txts.Count || greedy) {
 		Echo($"Screen count ({screenCount}) is out of whack (current: {txts.Count})");
 		getScreens(txts);
 	} else {
+		//probably may-aswell just getScreens either way. seems like there wouldn't be much performance hit
 		foreach(IMyTextPanel screen in txts) {
 			if(!screen.IsWorking) continue;
 			if(!screen.CustomName.ToLower().Contains(LCDName.ToLower())) continue;
@@ -901,11 +943,14 @@ public void checkNacelles() {
 	}
 
 
-	if(updateNacelles) {
+	if(updateNacelles || greedy) {
+		Echo("Updating Nacelles");
 		getNacelles(rots, thrs);
 	} else {
 		Echo("They seem fine.");
 	}
+
+	return true;
 }
 
 public bool init() {
@@ -925,7 +970,7 @@ public bool init() {
 //activeTag(IMyTerminalBlock block)
 
 // gets all the rotors and thrusters
-List<Nacelle> getNacelles() {
+void getNacelles() {
 	var blocks = new List<IMyTerminalBlock>();
 
 	// 1 call to GTS
@@ -947,9 +992,9 @@ List<Nacelle> getNacelles() {
 	rotorCount = rotors.Count;
 	thrusterCount = normalThrusters.Count;
 
-	return getNacelles(rotors, normalThrusters);
+	getNacelles(rotors, normalThrusters);
 }
-List<Nacelle> getNacelles(List<IMyMotorStator> rotors, List<IMyThrust> thrusters) {
+void getNacelles(List<IMyMotorStator> rotors, List<IMyThrust> thrusters) {
 	bool greedy = this.applyTags || this.removeTags || this.greedy;
 	gotNacellesCount++;
 	this.nacelles.Clear();
