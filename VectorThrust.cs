@@ -13,8 +13,17 @@ public bool cruise = false;
 // make cruise mode act more like an airplane
 public const bool cruisePlane = false;
 
-// only use blocks that have 'show in terminal' set to true
-public const bool ignoreHiddenBlocks = false;
+// this is used to identify blocks as belonging to this programmable block.
+// pass the '%applyTags' argument, and the program will spread its tag across all blocks it controls.
+// the program then won't touch any blocks that don't have the tag. unless you pass the '%removeTags' argument.
+// if you add or remove a tag manually, pass the '%reset' argument to force a re-check
+// if you make this tag unique to this ship, it won't interfere with your other vector thrust ships
+public const string myName = "VT";
+// normal: |VT|
+public const string activeSurround = "|";
+// standby: .VT.
+public const string standbySurround = ".";
+
 
 // standby stops all calculations and safely turns off all nacelles, good if you want to stop flying
 // but dont want to turn the craft off.
@@ -22,7 +31,7 @@ public const bool startInStandby = true;
 // change this is you don't want the script to start in standby... please only use this if you have permission from the server owner
 
 // set to -1 for the fastest speed in the game (changes with mods)
-public float maxRotorRPM = 60f;
+public const float maxRotorRPM = 60f;
 
 public const float defaultAccel = 1f;//this is the default target acceleration you see on the display
 // if you want to change the default, change this
@@ -61,6 +70,8 @@ public const string raiseAccelArg = "%raiseAccel";
 public const string lowerAccelArg = "%lowerAccel";
 public const string resetAccelArg = "%resetAccel";
 public const string resetArg = "%reset";//this one re-runs the initial setup... you probably want to use %resetAccel
+public const string applyTagsArg = "%applyTags";
+public const string removeTagsArg = "%removeTags";
 
 // control module gamepad bindings
 // type "/cm showinputs" into chat
@@ -73,17 +84,17 @@ public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
-// NOT YET IMPLEMENTED
-// this is used to identify programmable blocks as instances of vector thrust
-// if you change this, you should probably change all those that are going to connect to the same ship, otherwise they will fight for control.
-public const string myName = "|VT|";
-public const string myNameStandby = ".VT.";
 
 
 // default acceleration in situations with 0 (or low) gravity
 public const float zeroGAcceleration = 9.81f;
 // if gravity becomes less than this, zeroGAcceleration will kick in
 public const float gravCutoff = 0.1f * 9.81f;
+
+
+// DEPRECATED: use the tags instead
+// only use blocks that have 'show in terminal' set to true
+public const bool ignoreHiddenBlocks = false;
 
 
 
@@ -126,6 +137,7 @@ public Program() {
 	gotNacellesCount = 0;
 	updateNacellesCount = 0;
 	Runtime.UpdateFrequency = UpdateFrequency.Once;
+	this.greedy = !hasTag(Me);
 }
 public void Save() {}
 
@@ -184,6 +196,7 @@ public void Main(string argument, UpdateType runType) {
 		// runtype is not one that is allowed to give arguments
 		argument = "";
 	}
+	Echo("Greedy: " + this.greedy);
 
 	// Echo("Starting Main");
 	argument = argument.ToLower();
@@ -197,7 +210,9 @@ public void Main(string argument, UpdateType runType) {
 	argument.Contains(raiseAccelArg.ToLower()) ||
 	argument.Contains(lowerAccelArg.ToLower()) ||
 	argument.Contains(resetAccelArg.ToLower()) ||
-	argument.Contains(resetArg.ToLower());
+	argument.Contains(resetArg.ToLower()) ||
+	argument.Contains(applyTagsArg.ToLower()) ||
+	argument.Contains(removeTagsArg.ToLower());
 
 	// going into standby mode
 	if((togglePower && !standby) || goToStandby) {
@@ -205,17 +220,7 @@ public void Main(string argument, UpdateType runType) {
 		return;
 	// coming back from standby mode
 	} else if((anyArg || runType == UpdateType.Terminal) && standby || comeFromStandby) {
-		standby = false;
-		comeFromStandby = false;
-		foreach(Nacelle n in nacelles) {
-			n.rotor.theBlock.Enabled = true;
-			foreach(Thruster t in n.thrusters) {
-				if(t.IsOn) {
-					t.theBlock.Enabled = true;
-				}
-			}
-		}
-		Runtime.UpdateFrequency = update_frequency;
+		exitStandby();
 	} else {
 		Echo("Normal Running");
 	}
@@ -227,12 +232,28 @@ public void Main(string argument, UpdateType runType) {
 	}
 
 
-	checkNacelles();
-	if(updateNacelles) {
-		nacelles.Clear();
-		nacelles = getNacelles();
-		updateNacelles = false;
+
+	//tags and getting blocks
+	this.applyTags = argument.Contains(Program.applyTagsArg.ToLower());
+	this.removeTags = !this.applyTags && argument.Contains(Program.removeTagsArg.ToLower());
+	// switch on: removeTags
+	// switch off: applyTags
+	this.greedy = (!this.applyTags && this.greedy) || this.removeTags;
+	// this automatically calls getNacelles() as needed, and passes in previous GTS data
+	if(this.applyTags) {
+		addTag(Me);
+	} else if(this.removeTags) {
+		removeTag(Me);
 	}
+	if(!checkNacelles()) {
+		Echo("Setup failed, stopping.");
+		return;
+	}
+	this.applyTags = false;
+	this.removeTags = false;
+
+
+
 
 	if(justCompiled) {
 		justCompiled = false;
@@ -283,7 +304,7 @@ public void Main(string argument, UpdateType runType) {
 
 	if(myShipMass.BaseMass == 0) {
 		Echo("Can't fly a Station");
-		shipMass = 1;
+		shipMass = 0.001f;
 	}
 
 	// setup gravity
@@ -474,7 +495,6 @@ public int screenCount = 0;
 public int programBlockCount = 0;
 
 
-public bool updateNacelles = false;
 public bool standby = startInStandby;
 public Vector3D shipVelocity = Vector3D.Zero;
 
@@ -482,26 +502,115 @@ public bool justCompiled = true;
 public bool goToStandby = false;
 public bool comeFromStandby = false;
 
+public const string tag = activeSurround + myName + activeSurround;
+public const string offtag = standbySurround + myName + standbySurround;
+
+public bool applyTags = false;
+public bool removeTags = false;
+public bool greedy = true;
 
 
-public const string TimName = "%VectorTim";
+
 
 
 
 public void enterStandby() {
 	standby = true;
 	goToStandby = false;
+
+	//set status of blocks
 	foreach(Nacelle n in nacelles) {
 		n.rotor.theBlock.Enabled = false;
+		standbyTag(n.rotor.theBlock);
 		foreach(Thruster t in n.thrusters) {
 			t.theBlock.Enabled = false;
+			standbyTag(t.theBlock);
 		}
 	}
+	foreach(IMyTextPanel screen in usableScreens) {
+		standbyTag(screen);
+	}
+	foreach(IMyShipController cont in usableControllers) {
+		standbyTag(cont);
+	}
+	standbyTag(Me);
+
 	Runtime.UpdateFrequency = UpdateFrequency.None;
 
 	Echo("Standing By");
 	write("Standing By");
 }
+
+public void exitStandby() {
+	standby = false;
+	comeFromStandby = false;
+
+	//set status of blocks
+	foreach(Nacelle n in nacelles) {
+		n.rotor.theBlock.Enabled = true;
+		activeTag(n.rotor.theBlock);
+		foreach(Thruster t in n.thrusters) {
+			if(t.IsOn) {
+				t.theBlock.Enabled = true;
+			}
+			activeTag(t.theBlock);
+		}
+	}
+	foreach(IMyTextPanel screen in usableScreens) {
+		activeTag(screen);
+	}
+	foreach(IMyShipController cont in usableControllers) {
+		activeTag(cont);
+	}
+	activeTag(Me);
+
+	Runtime.UpdateFrequency = update_frequency;
+}
+
+public bool hasTag(IMyTerminalBlock block) {
+	return block.CustomName.Contains(tag) || block.CustomName.Contains(offtag);
+}
+
+public void addTag(IMyTerminalBlock block) {
+	string name = block.CustomName;
+
+	if(name.Contains(tag)) {
+		// there is already a tag, just set it to current status
+		if(standby) {
+			block.CustomName = name.Replace(tag, offtag);
+		}
+
+	} else if(name.Contains(offtag)) {
+		// there is already a tag, just set it to current status
+		if(!standby) {
+			block.CustomName = name.Replace(offtag, tag);
+		}
+
+	} else {
+		// no tag found, add tag to start of string
+
+		if(standby) {
+			block.CustomName = offtag + " " + name;
+		} else {
+			block.CustomName = tag + " " + name;
+		}
+	}
+
+}
+
+public void removeTag(IMyTerminalBlock block) {
+	block.CustomName = block.CustomName.Replace(tag, "").Trim();
+	block.CustomName = block.CustomName.Replace(offtag, "").Trim();
+}
+
+public void standbyTag(IMyTerminalBlock block) {
+	block.CustomName = block.CustomName.Replace(tag, offtag);
+}
+
+public void activeTag(IMyTerminalBlock block) {
+	block.CustomName = block.CustomName.Replace(offtag, tag);
+}
+
 
 // true: only main cockpit can be used even if there is no one in the main cockpit
 // false: any cockpits can be used, but if there is someone in the main cockpit, it will only obey the main cockpit
@@ -511,11 +620,21 @@ public bool onlyMain() {
 }
 
 public void getScreens(List<IMyTextPanel> screens) {
+	bool greedy = this.greedy || this.applyTags || this.removeTags;
 	this.screens = screens;
 	usableScreens.Clear();
 	foreach(IMyTextPanel screen in screens) {
+		if(!(greedy || hasTag(screen))) { continue; }
+		if(this.removeTags) {
+			removeTag(screen);
+		}
+
 		if(!screen.IsWorking) continue;
-		if(!screen.CustomName.ToLower().Contains(LCDName.ToLower())) continue;
+		if(!hasTag(screen) && !screen.CustomName.ToLower().Contains(LCDName.ToLower())) continue;
+
+		if(this.applyTags) {
+			addTag(screen);
+		}
 		usableScreens.Add(screen);
 	}
 	screenCount = screens.Count;
@@ -673,6 +792,7 @@ bool getControllers() {
 }
 
 bool getControllers(List<IMyShipController> blocks) {
+	bool greedy = this.greedy || this.applyTags || this.removeTags;
 	mainController = null;
 
 	usableControllers.Clear();
@@ -680,29 +800,42 @@ bool getControllers(List<IMyShipController> blocks) {
 	string reason = "";
 	for(int i = 0; i < blocks.Count; i++) {
 		bool canAdd = true;
-		reason += blocks[i].CustomName + "\n";
+		string currreason = blocks[i].CustomName + "\n";
 		if(!blocks[i].ShowInTerminal && ignoreHiddenBlocks) {
-			reason += "  ShowInTerminal not set\n";
+			currreason += "  ShowInTerminal not set\n";
 			canAdd = false;
 		}
 		if(!blocks[i].CanControlShip) {
-			reason += "  CanControlShip not set\n";
+			currreason += "  CanControlShip not set\n";
 			canAdd = false;
 		}
 		if(!blocks[i].ControlThrusters) {
-			reason += "  can't ControlThrusters\n";
+			currreason += "  can't ControlThrusters\n";
 			canAdd = false;
 		}
 		if(blocks[i].IsMainCockpit) {
 			mainController = blocks[i];
 		}
+		if(!(greedy || hasTag(blocks[i]))) {
+			currreason += "  Doesn't match my tag\n";
+			canAdd = false;
+		}
+		if(this.removeTags) {
+			removeTag(blocks[i]);
+		}
+
 		if(canAdd) {
 			usableControllers.Add(blocks[i]);
+			if(this.applyTags) {
+				addTag(blocks[i]);
+			}
+		} else {
+			reason += currreason + "\n";
 		}
 	}
 
 	if(usableControllers.Count == 0) {
-		Echo("ERROR: no usable ship controller found");
+		Echo("ERROR: no usable ship controller found. Reason: \n");
 		Echo(reason);
 		return false;
 	}
@@ -722,23 +855,25 @@ public IMyShipController findACockpit() {
 }
 
 // checks to see if the nacelles have changed
-public void checkNacelles() {
+public bool checkNacelles() {
 	var blocks = new List<IMyTerminalBlock>();
 	Echo("Checking Nacelles..");
 
+	bool greedy = this.applyTags || this.removeTags;
+
 	IMyShipController cont = findACockpit();
-	if(cont != null) {
+	if(cont != null && !greedy) {
 		MyShipMass shipmass = cont.CalculateShipMass();
-		if(oldMass == shipmass.BaseMass) {
+		if(this.oldMass == shipmass.BaseMass) {
 			Echo("Mass is the same, everything is good.");
 
 			// they may have changed the screen name to be a VT one
-			getScreens(screens);
-			return;
+			getScreens(this.screens);
+			return true;
 		}
 		Echo("Mass is different, checking everything.");
-		oldMass = shipmass.BaseMass;
-	} else {
+		this.oldMass = shipmass.BaseMass;
+	} else if(!greedy) {
 		Echo("No cockpit registered, checking everything.");
 	}
 
@@ -768,16 +903,22 @@ public void checkNacelles() {
 	}
 
 
+
+	bool updateNacelles = false;
+
 	// if you use the following if statement, it won't lock the non-main cockpit if someone sets the main cockpit, until a recompile or world load :/
-	if(/*(mainController != null ? !mainController.IsMainCockpit : false) || */controllers.Count != conts.Count) {
+	if(/*(mainController != null ? !mainController.IsMainCockpit : false) || */controllers.Count != conts.Count || cont == null || greedy) {
 		Echo($"Controller count ({controllers.Count}) is out of whack (current: {conts.Count})");
-		getControllers(conts);
+		if(!getControllers(conts)) {
+			return false;
+		}
 	}
 
-	if(screenCount != txts.Count) {
+	if(screenCount != txts.Count || greedy) {
 		Echo($"Screen count ({screenCount}) is out of whack (current: {txts.Count})");
 		getScreens(txts);
 	} else {
+		//probably may-aswell just getScreens either way. seems like there wouldn't be much performance hit
 		foreach(IMyTextPanel screen in txts) {
 			if(!screen.IsWorking) continue;
 			if(!screen.CustomName.ToLower().Contains(LCDName.ToLower())) continue;
@@ -788,7 +929,6 @@ public void checkNacelles() {
 	if(rotorCount != rots.Count) {
 		Echo($"Rotor count ({rotorCount}) is out of whack (current: {rots.Count})");
 		updateNacelles = true;
-		return;
 	}
 
 	var rotorHeads = new List<IMyAttachableTopBlock>();
@@ -801,22 +941,27 @@ public void checkNacelles() {
 		Echo($"Rotor Head count ({rotorTopCount}) is out of whack (current: {rotorHeads.Count})");
 		Echo($"Rotors: {rots.Count}");
 		updateNacelles = true;
-		return;
 	}
 
 	if(thrusterCount != thrs.Count) {
 		Echo($"Thruster count ({thrusterCount}) is out of whack (current: {thrs.Count})");
 		updateNacelles = true;
-		return;
 	}
 
-	Echo("They seem fine.");
+
+	if(updateNacelles || greedy) {
+		Echo("Updating Nacelles");
+		getNacelles(rots, thrs);
+	} else {
+		Echo("They seem fine.");
+	}
+
+	return true;
 }
 
 public bool init() {
 	Echo("Initialising..");
-	nacelles.Clear();
-	nacelles = getNacelles();
+	getNacelles();
 	if(!getControllers()) {
 		Echo("Init failed.");
 		return false;
@@ -825,12 +970,15 @@ public bool init() {
 	return true;
 }
 
-// G(thrusters * rotors)
+//addTag(IMyTerminalBlock block)
+//removeTag(IMyTerminalBlock block)
+//standbyTag(IMyTerminalBlock block)
+//activeTag(IMyTerminalBlock block)
+
 // gets all the rotors and thrusters
-List<Nacelle> getNacelles() {
-	gotNacellesCount++;
+void getNacelles() {
 	var blocks = new List<IMyTerminalBlock>();
-	var nacelles = new List<Nacelle>();
+
 	// 1 call to GTS
 	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyThrust) || (block is IMyMotorStator));
 
@@ -842,21 +990,37 @@ List<Nacelle> getNacelles() {
 	for(int i = blocks.Count-1; i >= 0; i--) {
 		if(blocks[i] is IMyThrust) {
 			normalThrusters.Add((IMyThrust)blocks[i]);
-		} else/* if(blocks[i] is IMyMotorStator) */{
+		} else /*if(blocks[i] is IMyMotorStator) */{
 			rotors.Add((IMyMotorStator)blocks[i]);
 		}
 		blocks.RemoveAt(i);
 	}
 	rotorCount = rotors.Count;
 	thrusterCount = normalThrusters.Count;
-	blocks.Clear();
+
+	getNacelles(rotors, normalThrusters);
+}
+void getNacelles(List<IMyMotorStator> rotors, List<IMyThrust> thrusters) {
+	bool greedy = this.applyTags || this.removeTags || this.greedy;
+	gotNacellesCount++;
+	this.nacelles.Clear();
+
+
 
 
 
 	Echo("Getting Rotors");
-	// make nacelles out of all valid rotors
+	// make this.nacelles out of all valid rotors
 	rotorTopCount = 0;
 	foreach(IMyMotorStator current in rotors) {
+		if(this.removeTags) {
+			removeTag(current);
+		} else if(this.applyTags) {
+			addTag(current);
+		}
+
+
+		if(!(greedy || hasTag(current))) { continue; }
 
 		if(current.Top == null) {
 			continue;
@@ -872,30 +1036,39 @@ List<Nacelle> getNacelles() {
 		// it's not set to not be a nacelle rotor
 		// it's topgrid is not the programmable blocks grid
 		Rotor rotor = new Rotor(current);
-		nacelles.Add(new Nacelle(rotor, this));
+		this.nacelles.Add(new Nacelle(rotor, this));
 	}
 
 	Echo("Getting Thrusters");
-	// add all thrusters to their corrisponding nacelle and remove nacelles that have none
-	for(int i = nacelles.Count-1; i >= 0; i--) {
-		for(int j = normalThrusters.Count-1; j >= 0; j--) {
-			if(normalThrusters[j].CubeGrid != nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
+	// add all thrusters to their corrisponding nacelle and remove this.nacelles that have none
+	for(int i = this.nacelles.Count-1; i >= 0; i--) {
+		for(int j = thrusters.Count-1; j >= 0; j--) {
+			if(!(greedy || hasTag(thrusters[j]))) { continue; }
+			if(this.removeTags) {
+				removeTag(thrusters[j]);
+			}
+			
+			if(thrusters[j].CubeGrid != this.nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
 			// if(!thrusters[j].IsFunctional) continue;// broken, don't add it
 
-			nacelles[i].thrusters.Add(new Thruster(normalThrusters[j]));
-			normalThrusters.RemoveAt(j);// shorten the list we have to check
+			if(this.applyTags) {
+				addTag(thrusters[j]);
+			}
+
+			this.nacelles[i].thrusters.Add(new Thruster(thrusters[j]));
+			thrusters.RemoveAt(j);// shorten the list we have to check
 		}
-		// remove nacelles (rotors) without thrusters
-		if(nacelles[i].thrusters.Count == 0) {
-			nacelles.RemoveAt(i);
+		// remove this.nacelles (rotors) without thrusters
+		if(this.nacelles[i].thrusters.Count == 0) {
+			removeTag(this.nacelles[i].rotor.theBlock);
+			this.nacelles.RemoveAt(i);// there is no more reference to the rotor, should be garbage collected
 			continue;
 		}
 		// if its still there, setup the nacelle
-		nacelles[i].validateThrusters(jetpack);
-		nacelles[i].detectThrustDirection();
+		this.nacelles[i].validateThrusters(jetpack);
+		this.nacelles[i].detectThrustDirection();
 	}
 
-	return nacelles;
 }
 
 public float lerp(float a, float b, float cutoff) {
@@ -1273,13 +1446,16 @@ public class Rotor {
 	public Vector3D direction = Vector3D.Zero;//offset relative to the head
 
 	public string errStr = "";
+	float maxRPM = maxRotorRPM;
 
 	public Rotor(IMyMotorStator rotor) {
 		this.theBlock = rotor;
 
 
 		if(maxRotorRPM <= 0) {
-			maxRotorRPM	= rotor.GetMaximum<float>("Velocity");
+			maxRPM = rotor.GetMaximum<float>("Velocity");
+		} else {
+			maxRPM = maxRotorRPM;
 		}
 	}
 
@@ -1291,7 +1467,7 @@ public class Rotor {
 
 	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
 	private void PointRotorAtVector(IMyMotorStator rotor, Vector3D targetDirection, Vector3D currentDirection, float multiplier) {
-		double errorScale = Math.PI * maxRotorRPM;
+		double errorScale = Math.PI * maxRPM;
 
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
@@ -1299,10 +1475,10 @@ public class Rotor {
 
 		err *= errorScale * multiplier;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
-		if (err > maxRotorRPM) {
-			rotor.TargetVelocityRPM = (float)maxRotorRPM;
-		} else if ((err*-1) > maxRotorRPM) {
-			rotor.TargetVelocityRPM = (float)(maxRotorRPM * -1);
+		if (err > maxRPM) {
+			rotor.TargetVelocityRPM = maxRPM;
+		} else if ((err*-1) > maxRPM) {
+			rotor.TargetVelocityRPM = maxRPM * -1;
 		} else {
 			rotor.TargetVelocityRPM = (float)err;
 		}
@@ -1378,7 +1554,7 @@ public class Rotor {
 	{
 		theBlock.Enabled = true;
 		x = cutAngle(x);
-		float velocity = maxRotorRPM;
+		float velocity = maxRPM;
 		float x2 = cutAngle(theBlock.Angle);
 		if(Math.Abs(x - x2) < Math.PI) {
 			//dont cross origin
