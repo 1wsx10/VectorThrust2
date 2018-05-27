@@ -84,6 +84,11 @@ public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
+// boost settings (this only works with control module)
+// you can use this to set target acceleration values that you can quickly jump to by holding down the specified button
+// there are defaults here:
+// 	c.sprint (shift)	3g
+// 	ctrl 			0.3g
 public const bool useBoosts = true;
 public BA[] boosts = {
 	new BA("c.sprint", 3f),
