@@ -84,6 +84,7 @@ public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
+public const bool useBoosts = true;
 public BA[] boosts = {
 	new BA("c.sprint", 3f),
 	new BA("ctrl", 0.3f)
@@ -526,6 +527,8 @@ public bool applyTags = false;
 public bool removeTags = false;
 public bool greedy = true;
 
+public Dictionary<string, object> CMinputs = null;
+
 
 
 
@@ -673,6 +676,16 @@ public void write(string str) {
 }
 
 double getAcceleration(double gravity) {
+	// look through boosts, applies acceleration of first one found
+	if(Program.useBoosts && this.controlModule) {
+		for(int i = 0; i < this.boosts.Length; i++) {
+			if(this.CMinputs.ContainsKey(this.boosts[i].button)) {
+				return this.boosts[i].accel * gravity * defaultAccel;
+			}
+		}
+	}
+
+	//none found or boosts not enabled, go for normal accel
 	return Math.Pow(accelBase, accelExponent) * gravity * defaultAccel;
 }
 
@@ -683,7 +696,7 @@ public Vector3D getMovementInput(string arg) {
 		// setup control module
 		Dictionary<string, object> inputs = new Dictionary<string, object>();
 		try {
-			inputs = Me.GetValue<Dictionary<string, object>>("ControlModule.Inputs");
+			this.CMinputs = Me.GetValue<Dictionary<string, object>>("ControlModule.Inputs");
 			Me.SetValue<string>("ControlModule.AddInput", "all");
 			Me.SetValue<bool>("ControlModule.RunOnInput", true);
 			Me.SetValue<int>("ControlModule.InputState", 1);
@@ -691,50 +704,52 @@ public Vector3D getMovementInput(string arg) {
 		} catch(Exception e) {
 			controlModule = false;
 		}
+	}
 
+	if(controlModule) {
 		// non-movement controls
-		if(inputs.ContainsKey(dampenersButton) && !dampenersIsPressed) {//inertia dampener key
+		if(this.CMinputs.ContainsKey(dampenersButton) && !dampenersIsPressed) {//inertia dampener key
 			dampeners = !dampeners;//toggle
 			dampenersIsPressed = true;
 		}
-		if(!inputs.ContainsKey(dampenersButton)) {
+		if(!this.CMinputs.ContainsKey(dampenersButton)) {
 			dampenersIsPressed = false;
 		}
 
 
-		if(inputs.ContainsKey(cruiseButton) && !cruiseIsPressed) {//cruise key
+		if(this.CMinputs.ContainsKey(cruiseButton) && !cruiseIsPressed) {//cruise key
 			cruise = !cruise;//toggle
 			cruiseIsPressed = true;
 		}
-		if(!inputs.ContainsKey(cruiseButton)) {
+		if(!this.CMinputs.ContainsKey(cruiseButton)) {
 			cruiseIsPressed = false;
 		}
 
-		if(inputs.ContainsKey(jetpackButton) && !jetpackIsPressed) {//jetpack key
+		if(this.CMinputs.ContainsKey(jetpackButton) && !jetpackIsPressed) {//jetpack key
 			jetpack = !jetpack;//toggle
 			jetpackIsPressed = true;
 		}
-		if(!inputs.ContainsKey(jetpackButton)) {
+		if(!this.CMinputs.ContainsKey(jetpackButton)) {
 			jetpackIsPressed = false;
 		}
 
-		if(inputs.ContainsKey(raiseAccel) && !plusIsPressed) {//throttle up
+		if(this.CMinputs.ContainsKey(raiseAccel) && !plusIsPressed) {//throttle up
 			accelExponent++;
 			plusIsPressed = true;
 		}
-		if(!inputs.ContainsKey(raiseAccel)) { //increase target acceleration
+		if(!this.CMinputs.ContainsKey(raiseAccel)) { //increase target acceleration
 			plusIsPressed = false;
 		}
 
-		if(inputs.ContainsKey(lowerAccel) && !minusIsPressed) {//throttle down
+		if(this.CMinputs.ContainsKey(lowerAccel) && !minusIsPressed) {//throttle down
 			accelExponent--;
 			minusIsPressed = true;
 		}
-		if(!inputs.ContainsKey(lowerAccel)) { //lower target acceleration
+		if(!this.CMinputs.ContainsKey(lowerAccel)) { //lower target acceleration
 			minusIsPressed = false;
 		}
 
-		if(inputs.ContainsKey(resetAccel)) { //default target acceleration
+		if(this.CMinputs.ContainsKey(resetAccel)) { //default target acceleration
 			accelExponent = 0;
 		}
 
