@@ -84,6 +84,23 @@ public const string lowerAccel = "minus";
 public const string raiseAccel = "plus";
 public const string resetAccel = "0";
 
+public BA[] boosts = {
+	new BA("c.sprint", 3f),
+	new BA("ctrl", 0.3f)
+};
+
+
+
+public struct BA {
+	public string button;
+	public float accel;
+
+	public BA(string button, float accel) {
+		this.button = button;
+		this.accel = accel;
+	}
+}
+
 
 
 // default acceleration in situations with 0 (or low) gravity
