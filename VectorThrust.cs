@@ -325,7 +325,7 @@ public void Main(string argument, UpdateType runType) {
 	MyShipMass myShipMass = usableControllers[0].CalculateShipMass();
 	float shipMass = myShipMass.PhysicalMass;
 
-	if(myShipMass.BaseMass == 0) {
+	if(myShipMass.BaseMass < 0.001f) {
 		Echo("Can't fly a Station");
 		shipMass = 0.001f;
 	}
@@ -412,8 +412,11 @@ public void Main(string argument, UpdateType runType) {
 	// ========== DISTRIBUTE THE FORCE EVENLY BETWEEN NACELLES ==========
 
 	// update thrusters on/off and re-check nacelles direction
+	bool gravChanged = Math.Abs(lastGrav - gravLength) > 0.05f;
+	lastGrav = gravLength;
 	foreach(Nacelle n in nacelles) {
-		if(!n.validateThrusters(jetpack)) {
+		// we want to update if the thrusters are not valid, or atmosphere has changed
+		if(!n.validateThrusters(jetpack) || gravChanged) {
 			n.detectThrustDirection();
 		}
 		// Echo($"thrusters: {n.thrusters.Count}");
@@ -531,6 +534,7 @@ public const string offtag = standbySurround + myName + standbySurround;
 public bool applyTags = false;
 public bool removeTags = false;
 public bool greedy = true;
+public float lastGrav = 0;
 
 public Dictionary<string, object> CMinputs = null;
 
@@ -1239,7 +1243,7 @@ public class Nacelle {
 			thruster.errStr = "";
 			// errStr += thrustOffset.progressBar();
 			Vector3D thrust = thrustOffset * requiredVec * thruster.theBlock.MaxEffectiveThrust / totalEffectiveThrust;
-			bool noThrust = thrust.LengthSquared() == 0;
+			bool noThrust = thrust.LengthSquared() < 0.001f;
 			if(!jetpack || !thrustOn || noThrust) {
 				thruster.setThrust(0);
 				thruster.theBlock.Enabled = false;
