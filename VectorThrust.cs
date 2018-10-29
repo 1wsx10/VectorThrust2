@@ -1088,7 +1088,7 @@ void getNacelles(List<IMyMotorStator> rotors, List<IMyThrust> thrusters) {
 			if(this.removeTags) {
 				removeTag(thrusters[j]);
 			}
-			
+
 			if(thrusters[j].CubeGrid != this.nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
 			// if(!thrusters[j].IsFunctional) continue;// broken, don't add it
 
@@ -1259,7 +1259,7 @@ public class Nacelle {
 		oldJetpack = jetpack;
 	}
 
-	public float calcTotalEffectiveThrust(List<Thruster> thrusters) {
+	public float calcTotalEffectiveThrust(IEnumerable<Thruster> thrusters) {
 		float total = 0;
 		foreach(Thruster t in thrusters) {
 			total += t.theBlock.MaxEffectiveThrust;
@@ -1267,13 +1267,6 @@ public class Nacelle {
 		return total;
 	}
 
-	public float calcTotalEffectiveThrust(HashSet<Thruster> thrusters) {
-		float total = 0;
-		foreach(Thruster t in thrusters) {
-			total += t.theBlock.MaxEffectiveThrust;
-		}
-		return total;
-	}
 
 	//true if all thrusters are good
 	public bool validateThrusters(bool jetpack) {
