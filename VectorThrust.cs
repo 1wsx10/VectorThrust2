@@ -232,8 +232,6 @@ public void Main(string argument, UpdateType runType) {
 	argument.Contains(cruiseArg.ToLower()) ||
 	argument.Contains(jetpackArg.ToLower()) ||
 	argument.Contains(standbytogArg.ToLower()) ||
-	argument.Contains(standbyonArg.ToLower()) ||
-	argument.Contains(standbyoffArg.ToLower()) ||
 	argument.Contains(raiseAccelArg.ToLower()) ||
 	argument.Contains(lowerAccelArg.ToLower()) ||
 	argument.Contains(resetAccelArg.ToLower()) ||
@@ -241,11 +239,19 @@ public void Main(string argument, UpdateType runType) {
 	argument.Contains(applyTagsArg.ToLower()) ||
 	argument.Contains(removeTagsArg.ToLower());
 
-	// going into standby mode
-	if((togglePower && !standby) || goToStandby) {
+	// set standby mode on
+	if(argument.Contains(standbyonArg.ToLower()) || goToStandby) {
+		enterStandby();
+	        return;
+	// set standby mode off
+	} else if(argument.Contains(standbyoffArg.ToLlwer()) || comeFromStandby) {
+		exitStandby();
+		return;
+	// going into standby mode toggle
+	} else if((togglePower && !standby) || goToStandby) {
 		enterStandby();
 		return;
-	// coming back from standby mode
+	// coming back from standby mode toggle
 	} else if((anyArg || runType == UpdateType.Terminal) && standby || comeFromStandby) {
 		exitStandby();
 	} else {
