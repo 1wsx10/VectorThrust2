@@ -62,7 +62,9 @@ public const UpdateFrequency update_frequency = UpdateFrequency.Update1;
 public const string LCDName = "%VectorLCD";
 
 // arguments, you can change these to change what text you run the programmable block with
-public const string standbyArg = "%standby";
+public const string standbytogArg = "%standby";
+public const string standbyonArg = "%standbyon";
+public const string standbyoffArg = "%standbyoff";
 public const string dampenersArg = "%dampeners";
 public const string cruiseArg = "%cruise";
 public const string jetpackArg = "%jetpack";
@@ -223,13 +225,15 @@ public void Main(string argument, UpdateType runType) {
 
 	// Echo("Starting Main");
 	argument = argument.ToLower();
-	bool togglePower = argument.Contains(standbyArg.ToLower());
+	bool togglePower = argument.Contains(standbytogArg.ToLower());
 
 	bool anyArg =
 	argument.Contains(dampenersArg.ToLower()) ||
 	argument.Contains(cruiseArg.ToLower()) ||
 	argument.Contains(jetpackArg.ToLower()) ||
-	argument.Contains(standbyArg.ToLower()) ||
+	argument.Contains(standbytogArg.ToLower()) ||
+	argument.Contains(standbyonArg.ToLower()) ||
+	argument.Contains(standbyoffArg.ToLower()) ||
 	argument.Contains(raiseAccelArg.ToLower()) ||
 	argument.Contains(lowerAccelArg.ToLower()) ||
 	argument.Contains(resetAccelArg.ToLower()) ||
