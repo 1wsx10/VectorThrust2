@@ -62,7 +62,9 @@ public const UpdateFrequency update_frequency = UpdateFrequency.Update1;
 public const string LCDName = "%VectorLCD";
 
 // arguments, you can change these to change what text you run the programmable block with
-public const string standbyArg = "%standby";
+public const string standbytogArg = "%standby";
+public const string standbyonArg = "%standbyon";
+public const string standbyoffArg = "%standbyoff";
 public const string dampenersArg = "%dampeners";
 public const string cruiseArg = "%cruise";
 public const string jetpackArg = "%jetpack";
@@ -223,13 +225,13 @@ public void Main(string argument, UpdateType runType) {
 
 	// Echo("Starting Main");
 	argument = argument.ToLower();
-	bool togglePower = argument.Contains(standbyArg.ToLower());
+	bool togglePower = argument.Contains(standbytogArg.ToLower());
 
 	bool anyArg =
 	argument.Contains(dampenersArg.ToLower()) ||
 	argument.Contains(cruiseArg.ToLower()) ||
 	argument.Contains(jetpackArg.ToLower()) ||
-	argument.Contains(standbyArg.ToLower()) ||
+	argument.Contains(standbytogArg.ToLower()) ||
 	argument.Contains(raiseAccelArg.ToLower()) ||
 	argument.Contains(lowerAccelArg.ToLower()) ||
 	argument.Contains(resetAccelArg.ToLower()) ||
@@ -237,11 +239,19 @@ public void Main(string argument, UpdateType runType) {
 	argument.Contains(applyTagsArg.ToLower()) ||
 	argument.Contains(removeTagsArg.ToLower());
 
-	// going into standby mode
-	if((togglePower && !standby) || goToStandby) {
+	// set standby mode on
+	if(argument.Contains(standbyonArg.ToLower()) || goToStandby) {
+		enterStandby();
+	        return;
+	// set standby mode off
+	} else if(argument.Contains(standbyoffArg.ToLlwer()) || comeFromStandby) {
+		exitStandby();
+		return;
+	// going into standby mode toggle
+	} else if((togglePower && !standby) || goToStandby) {
 		enterStandby();
 		return;
-	// coming back from standby mode
+	// coming back from standby mode toggle
 	} else if((anyArg || runType == UpdateType.Terminal) && standby || comeFromStandby) {
 		exitStandby();
 	} else {
