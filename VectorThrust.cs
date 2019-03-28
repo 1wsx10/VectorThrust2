@@ -63,8 +63,8 @@ public const string LCDName = "%VectorLCD";
 
 // arguments, you can change these to change what text you run the programmable block with
 public const string standbytogArg = "%standby";
-public const string standbyonArg = "%standbyon";
-public const string standbyoffArg = "%standbyoff";
+public const string standbyonArg = "%standbyenter";
+public const string standbyoffArg = "%standbyexit";
 public const string dampenersArg = "%dampeners";
 public const string cruiseArg = "%cruise";
 public const string jetpackArg = "%jetpack";
@@ -244,7 +244,7 @@ public void Main(string argument, UpdateType runType) {
 		enterStandby();
 	        return;
 	// set standby mode off
-	} else if(argument.Contains(standbyoffArg.ToLlwer()) || comeFromStandby) {
+	} else if(argument.Contains(standbyoffArg.ToLower()) || comeFromStandby) {
 		exitStandby();
 		return;
 	// going into standby mode toggle
@@ -1098,7 +1098,7 @@ void getNacelles(List<IMyMotorStator> rotors, List<IMyThrust> thrusters) {
 			if(this.removeTags) {
 				removeTag(thrusters[j]);
 			}
-			
+
 			if(thrusters[j].CubeGrid != this.nacelles[i].rotor.theBlock.TopGrid) continue;// thruster is not for the current nacelle
 			// if(!thrusters[j].IsFunctional) continue;// broken, don't add it
 
