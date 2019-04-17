@@ -520,6 +520,7 @@ public List<Nacelle> nacelles = new List<Nacelle>();
 public List<IMyThrust> normalThrusters = new List<IMyThrust>();
 public List<IMyTextPanel> screens = new List<IMyTextPanel>();
 public List<IMyTextPanel> usableScreens = new List<IMyTextPanel>();
+public HashSet<IMyTextSurface> surfaces = new HashSet<IMyTextSurface>();
 public List<IMyProgrammableBlock> programBlocks = new List<IMyProgrammableBlock>();
 
 public float oldMass = 0;
@@ -663,18 +664,25 @@ public void getScreens(List<IMyTextPanel> screens) {
 	this.screens = screens;
 	usableScreens.Clear();
 	foreach(IMyTextPanel screen in screens) {
-		if(!(greedy || hasTag(screen))) { continue; }
+		bool continue_ = false;
+
 		if(this.removeTags) {
 			removeTag(screen);
 		}
 
-		if(!screen.IsWorking) continue;
-		if(!hasTag(screen) && !screen.CustomName.ToLower().Contains(LCDName.ToLower())) continue;
+		if(!greedy && !hasTag(screen)) { continue_ = true; }
+		if(!screen.IsWorking) continue_ = true;
+		if(!hasTag(screen) && !screen.CustomName.ToLower().Contains(LCDName.ToLower())) continue_ = true;
 
+		if(continue_) {
+			surfaces.Remove(screen);
+			continue;
+		}
 		if(this.applyTags) {
 			addTag(screen);
 		}
 		usableScreens.Add(screen);
+		surfaces.Add(screen);
 	}
 	screenCount = screens.Count;
 }
