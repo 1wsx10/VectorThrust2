@@ -82,9 +82,9 @@ public const string removeTagsArg = "%removeTags";
 public const string jetpackButton = "c.thrusts";
 public const string dampenersButton = "c.damping";
 public const string cruiseButton = "c.cubesizemode";
-public const string lowerAccel = "minus";
-public const string raiseAccel = "plus";
-public const string resetAccel = "0";
+public const string lowerAccel = "c.switchleft";
+public const string raiseAccel = "c.switchright";
+public const string resetAccel = "pipe";
 
 // boost settings (this only works with control module)
 // you can use this to set target acceleration values that you can quickly jump to by holding down the specified button
