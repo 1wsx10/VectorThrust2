@@ -683,8 +683,8 @@ public void write(string str) {
 	if(usableScreens.Count > 0) {
 		str += "\n";
 		foreach(IMyTextPanel screen in usableScreens) {
-			screen.WritePublicText(str, globalAppend);
-			screen.ShowPublicTextOnScreen();
+			screen.WriteText(str, globalAppend);
+            screen.ContentType = ContentType.TEXT_AND_IMAGE;
 		}
 		globalAppend = true;
 	} else {
