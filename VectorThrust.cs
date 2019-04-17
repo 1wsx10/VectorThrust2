@@ -907,13 +907,14 @@ public IMyShipController findACockpit() {
 
 // checks to see if the nacelles have changed
 public bool checkNacelles() {
-	var blocks = new List<IMyTerminalBlock>();
 	Echo("Checking Nacelles..");
 
 	bool greedy = this.applyTags || this.removeTags;
 
 	IMyShipController cont = findACockpit();
-	if(cont != null && !greedy) {
+	if(cont == null) {
+		Echo("No cockpit registered, checking everything.");
+	} else if(!greedy) {
 		MyShipMass shipmass = cont.CalculateShipMass();
 		if(this.oldMass == shipmass.BaseMass) {
 			Echo("Mass is the same, everything is good.");
@@ -924,32 +925,33 @@ public bool checkNacelles() {
 		}
 		Echo("Mass is different, checking everything.");
 		this.oldMass = shipmass.BaseMass;
-	} else if(!greedy) {
-		Echo("No cockpit registered, checking everything.");
 	}
 
-	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks, block => (block is IMyShipController || block is IMyThrust || block is IMyMotorStator || block is IMyTextPanel || block is IMyProgrammableBlock));
 	List<IMyShipController> conts = new List<IMyShipController>();
 	List<IMyMotorStator> rots = new List<IMyMotorStator>();
 	List<IMyThrust> thrs = new List<IMyThrust>();
 	List<IMyTextPanel> txts = new List<IMyTextPanel>();
 	List<IMyProgrammableBlock> programBlocks = new List<IMyProgrammableBlock>();
 
-	for(int i = 0; i < blocks.Count; i++) {
-		if(blocks[i] is IMyShipController) {
-			conts.Add((IMyShipController)blocks[i]);
-		}
-		if(blocks[i] is IMyMotorStator) {
-			rots.Add((IMyMotorStator)blocks[i]);
-		}
-		if(blocks[i] is IMyThrust) {
-			thrs.Add((IMyThrust)blocks[i]);
-		}
-		if(blocks[i] is IMyTextPanel) {
-			txts.Add((IMyTextPanel)blocks[i]);
-		}
-		if(blocks[i] is IMyProgrammableBlock) {
-			programBlocks.Add((IMyProgrammableBlock)blocks[i]);
+	if(true) {//artificial scope :)
+		List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
+		GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(blocks);
+		for(int i = 0; i < blocks.Count; i++) {
+			if(blocks[i] is IMyShipController) {
+				conts.Add((IMyShipController)blocks[i]);
+			}
+			if(blocks[i] is IMyMotorStator) {
+				rots.Add((IMyMotorStator)blocks[i]);
+			}
+			if(blocks[i] is IMyThrust) {
+				thrs.Add((IMyThrust)blocks[i]);
+			}
+			if(blocks[i] is IMyTextPanel) {
+				txts.Add((IMyTextPanel)blocks[i]);
+			}
+			if(blocks[i] is IMyProgrammableBlock) {
+				programBlocks.Add((IMyProgrammableBlock)blocks[i]);
+			}
 		}
 	}
 
