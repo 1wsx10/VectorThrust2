@@ -24,6 +24,14 @@ public const string activeSurround = "|";
 // standby: .VT.
 public const string standbySurround = ".";
 
+// put this in custom data of a cockpit to instruct the script to use a display in that cockpit
+// it has to be on a line of its own, and have an integer after the ':'
+// the integer must be 0 <= integer <= total # of displays in the cockpit
+// eg:
+//		%Vector:0
+// this would make the script use the 1st display. the 1st display is #0, 2nd #1 etc..
+// if you have trouble, look in the bottom right of the PB terminal, it will print errors there
+public const string textSurfaceKeyword = "%Vector:";
 
 // standby stops all calculations and safely turns off all nacelles, good if you want to stop flying
 // but dont want to turn the craft off.
@@ -258,7 +266,7 @@ public void Main(string argument, UpdateType runType) {
 		Echo("Normal Running");
 	}
 
-	if(argument.Contains(resetArg.ToLower()) || controllers.Count == 0 || justCompiled) {
+	if(justCompiled || controllers.Count == 0 || argument.Contains(resetArg.ToLower())) {
 		if(!init()) {
 			return;
 		}
@@ -500,8 +508,13 @@ public void Main(string argument, UpdateType runType) {
 	// write("Got Nacelles: " + gotNacellesCount);
 	// write("Update Nacelles: " + updateNacellesCount);
 	// ========== END OF MAIN ==========
+
+	// echo the errors with surface provider
+	Echo(surfaceProviderErrorStr);
 }
 
+
+public string surfaceProviderErrorStr = "";
 
 public int accelExponent = 0;
 
@@ -659,6 +672,10 @@ public bool onlyMain() {
 	return mainController != null && (mainController.IsUnderControl || onlyMainCockpit);
 }
 
+public void getScreens() {
+	getScreens(this.screens);
+}
+
 public void getScreens(List<IMyTextPanel> screens) {
 	bool greedy = this.greedy || this.applyTags || this.removeTags;
 	this.screens = screens;
@@ -688,18 +705,16 @@ public void getScreens(List<IMyTextPanel> screens) {
 }
 
 public void write(string str) {
-	if(usableScreens.Count > 0) {
+	if(this.surfaces.Count > 0) {
 		str += "\n";
-		foreach(IMyTextPanel screen in usableScreens) {
-			screen.WriteText(str, globalAppend);
-            screen.ContentType = ContentType.TEXT_AND_IMAGE;
+		foreach(IMyTextSurface surface in this.surfaces) {
+			surface.WriteText(str, globalAppend);
+			surface.ContentType = ContentType.TEXT_AND_IMAGE;
 		}
-		globalAppend = true;
-	} else {
-		if(globalAppend) return;
-		Echo("No screens available");
-		globalAppend = true;
+	} else if(!globalAppend) {
+		Echo("No text surfaces available");
 	}
+	globalAppend = true;
 }
 
 double getAcceleration(double gravity) {
@@ -843,16 +858,110 @@ public Vector3D getMovementInput(string arg) {
 	return moveVec;
 }
 
-bool getControllers() {
-	var blocks = new List<IMyShipController>();
-	GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks);
+void removeSurface(IMyTextSurface surface) {
+	if(this.surfaces.Contains(surface)) {
+		//need to check this, because otherwise it will reset panels
+		//we aren't controlling
+		this.surfaces.Remove(surface);
+		surface.ContentType = ContentType.NONE;
+		surface.WriteText("", false);
+	}
+}
 
-	return getControllers(blocks);
+bool removeSurfaceProvider(IMyTerminalBlock block) {
+	if(!(block is IMyTextSurfaceProvider)) return false;
+	IMyTextSurfaceProvider provider = (IMyTextSurfaceProvider)block;
+
+	for(int i = 0; i < provider.SurfaceCount; i++) {
+		if(surfaces.Contains(provider.GetSurface(i))) {
+			removeSurface(provider.GetSurface(i));
+		}
+	}
+	return true;
+}
+bool addSurfaceProvider(IMyTerminalBlock block) {
+	if(!(block is IMyTextSurfaceProvider)) return false;
+	IMyTextSurfaceProvider provider = (IMyTextSurfaceProvider)block;
+	bool retval = true;
+
+	if(block.CustomData.Length == 0) {
+		return false;
+	}
+
+	bool [] to_add = new bool[provider.SurfaceCount];
+	for(int i = 0; i < to_add.Length; i++) {
+		to_add[i] = false;
+	}
+
+	int begin_search = 0;
+	while(begin_search >= 0) {
+		string data = block.CustomData;
+		int start = data.IndexOf(textSurfaceKeyword, begin_search);
+
+		if(start < 0) {
+			// true if it found at least 1
+			retval =  begin_search != 0;
+			break;
+		}
+		int end = data.IndexOf("\n", start);
+		begin_search = end;
+
+		string display = "";
+		if(end < 0) {
+			display = data.Substring(start + textSurfaceKeyword.Length);
+		} else {
+			display = data.Substring(start + textSurfaceKeyword.Length, end - (start + textSurfaceKeyword.Length) );
+		}
+
+		int display_num = 0;
+		if(Int32.TryParse(display, out display_num)) {
+			if(display_num >= 0 && display_num < provider.SurfaceCount) {
+				// it worked, add the surface
+				to_add[display_num] = true;
+
+			} else {
+				// range check failed
+				string err_str = "";
+				if(end < 0) {
+					err_str = data.Substring(start);
+				} else {
+					err_str = data.Substring(start, end - (start) );
+				}
+				surfaceProviderErrorStr += $"\nDisplay number out of range: {display_num}\nshould be: 0 <= num < {provider.SurfaceCount}\non line: ({err_str})\nin block: {block.CustomName}\n";
+			}
+
+		} else {
+			//didn't parse
+			string err_str = "";
+			if(end < 0) {
+				err_str = data.Substring(start);
+			} else {
+				err_str = data.Substring(start, end - (start) );
+			}
+			surfaceProviderErrorStr += $"\nDisplay number invalid: {display}\non line: ({err_str})\nin block: {block.CustomName}\n";
+		}
+	}
+
+	for(int i = 0; i < to_add.Length; i++) {
+		if(to_add[i]) {
+			this.surfaces.Add(provider.GetSurface(i));
+		} else {
+			removeSurface(provider.GetSurface(i));
+		}
+	}
+
+
+	return retval;
+}
+
+bool getControllers() {
+	return getControllers(this.controllers);
 }
 
 bool getControllers(List<IMyShipController> blocks) {
 	bool greedy = this.greedy || this.applyTags || this.removeTags;
 	mainController = null;
+	this.controllers = blocks;
 
 	usableControllers.Clear();
 
@@ -884,13 +993,18 @@ bool getControllers(List<IMyShipController> blocks) {
 		}
 
 		if(canAdd) {
+			addSurfaceProvider(blocks[i]);
 			usableControllers.Add(blocks[i]);
 			if(this.applyTags) {
 				addTag(blocks[i]);
 			}
 		} else {
-			reason += currreason + "\n";
+			removeSurfaceProvider(blocks[i]);
+			reason += currreason;
 		}
+	}
+	if(blocks.Count == 0) {
+		reason += "no controllers\n";
 	}
 
 	if(usableControllers.Count == 0) {
@@ -928,11 +1042,14 @@ public bool checkNacelles() {
 			Echo("Mass is the same, everything is good.");
 
 			// they may have changed the screen name to be a VT one
-			getScreens(this.screens);
+			getControllers();
+			getScreens();
 			return true;
 		}
 		Echo("Mass is different, checking everything.");
 		this.oldMass = shipmass.BaseMass;
+		// surface may be exploded if mass changes, in this case, ghost surfaces my be left behind
+		this.surfaces.Clear();
 	}
 
 	List<IMyShipController> conts = new List<IMyShipController>();
@@ -963,7 +1080,10 @@ public bool checkNacelles() {
 		}
 	}
 
-
+	surfaceProviderErrorStr = "";
+	Me.CustomData = textSurfaceKeyword + 0;
+	addSurfaceProvider(Me);
+	Me.GetSurface(0).FontSize = 2.2f;
 
 	bool updateNacelles = false;
 
@@ -1023,7 +1143,9 @@ public bool checkNacelles() {
 public bool init() {
 	Echo("Initialising..");
 	getNacelles();
-	if(!getControllers()) {
+	List<IMyShipController> conts = new List<IMyShipController>();
+	GridTerminalSystem.GetBlocksOfType<IMyShipController>(conts);
+	if(!getControllers(conts)) {
 		Echo("Init failed.");
 		return false;
 	}
