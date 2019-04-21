@@ -171,6 +171,9 @@ public Program() {
 	updateNacellesCount = 0;
 	Runtime.UpdateFrequency = UpdateFrequency.Once;
 	this.greedy = !hasTag(Me);
+	if(Me.CustomData.Equals("")) {
+		Me.CustomData = textSurfaceKeyword + 0;
+	}
 }
 public void Save() {}
 
@@ -1080,10 +1083,12 @@ public bool checkNacelles() {
 		}
 	}
 
-	surfaceProviderErrorStr = "";
-	Me.CustomData = textSurfaceKeyword + 0;
-	addSurfaceProvider(Me);
-	Me.GetSurface(0).FontSize = 2.2f;
+	if(Me.SurfaceCount > 0) {
+		surfaceProviderErrorStr = "";
+		Me.CustomData = textSurfaceKeyword + 0;
+		addSurfaceProvider(Me);
+		Me.GetSurface(0).FontSize = 2.2f;// this isn't really the right place to put this, but doing it right would be a lot more code
+	}
 
 	bool updateNacelles = false;
 
