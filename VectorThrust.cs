@@ -1840,7 +1840,7 @@ public static class CustomProgramExtensions {
 
 	public static String toString(this Vector3D val, bool pretty) {
 		if(!pretty)
-			return $"X:{val.X} Y:{val.Y} Z:{val.Z}";
+			return val.toString();
 		else
 			return $"X:{val.X}\nY:{val.Y}\nZ:{val.Z}\n";
 	}
