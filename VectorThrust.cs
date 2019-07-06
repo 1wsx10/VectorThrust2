@@ -1833,3 +1833,14 @@ public static class CustomProgramExtensions {
 	public static float Round(this float val, int num) {
 		return (float)Math.Round(val, num);
 	}
+
+	public static String toString(this Vector3D val) {
+		return $"X:{val.X} Y:{val.Y} Z:{val.Z}";
+	}
+
+	public static String toString(this Vector3D val, bool pretty) {
+		if(!pretty)
+			return $"X:{val.X} Y:{val.Y} Z:{val.Z}";
+		else
+			return $"X:{val.X}\nY:{val.Y}\nZ:{val.Z}\n";
+	}
