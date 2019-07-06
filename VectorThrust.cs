@@ -512,6 +512,12 @@ public void Main(string argument, UpdateType runType) {
 	// write("Update Nacelles: " + updateNacellesCount);
 	// ========== END OF MAIN ==========
 
+
+	foreach(Nacelle n in nacelles) {
+		Echo(n.errStr);
+		write(n.errStr);
+	}
+
 	// echo the errors with surface provider
 	Echo(surfaceProviderErrorStr);
 }
@@ -1320,7 +1326,7 @@ public class Nacelle {
 
 	// final calculations and setting physical components
 	public void go(bool jetpack, bool dampeners, float shipMass) {
-		errStr = "";
+		errStr = "=======Nacelle=======\n";
 		// errStr += $"\nactive thrusters: {activeThrusters.Count}";
 		// errStr += $"\nall thrusters: {thrusters.Count}";
 		totalEffectiveThrust = (float)calcTotalEffectiveThrust(activeThrusters);
@@ -1361,7 +1367,7 @@ public class Nacelle {
 			angleCos = rotor.setFromVec(requiredVec);
 			// rotor.setFromVecOld(requiredVec);
 		}
-		// errStr += "\n" + rotor.errStr;
+		errStr += $"rotor '{rotor.theBlock.CustomName}':\n" + rotor.errStr;
 		rotor.errStr = "";
 
 
@@ -1385,8 +1391,9 @@ public class Nacelle {
 		}
 
 		//set the thrust for each engine
+		errStr += $"\n=======thrusters=======";
 		foreach(Thruster thruster in activeThrusters) {
-			// errStr += "\n" + activeThrusters[i].errStr;
+			errStr += $"\nthruster '{thruster.theBlock.CustomName}': {thruster.errStr}\n";
 			thruster.errStr = "";
 			// errStr += thrustOffset.progressBar();
 			Vector3D thrust = thrustOffset * requiredVec * thruster.theBlock.MaxEffectiveThrust / totalEffectiveThrust;
@@ -1403,6 +1410,8 @@ public class Nacelle {
 				thruster.IsOffBecauseJetpack = false;
 			}
 		}
+		errStr += $"\n-------thrusters-------";
+		errStr += $"\n-------Nacelle-------";
 		oldJetpack = jetpack;
 	}
 
@@ -1597,23 +1606,21 @@ public class Thruster {
 	// sets the thrust in newtons (N)
 	// thrustVec is in worldspace, who'se length is the desired thrust
 	public void setThrust(Vector3D thrustVec) {
-		double thrust = thrustVec.Length();
-		if(thrust > theBlock.MaxThrust) {
-			thrust = theBlock.MaxThrust;
-		} else if(thrust < 0) {
-			thrust = 0;
-		}
-		theBlock.ThrustOverride = (float)(thrust * theBlock.MaxThrust / theBlock.MaxEffectiveThrust);
+		setThrust(thrustVec.Length());
 	}
 
 	// sets the thrust in newtons (N)
 	public void setThrust(double thrust) {
 		if(thrust > theBlock.MaxThrust) {
 			thrust = theBlock.MaxThrust;
+			errStr += $"\nExceeding max thrust";
 		} else if(thrust < 0) {
+			errStr += $"\nNegative Thrust";
 			thrust = 0;
 		}
+		errStr += $"\nEffective {(100*theBlock.MaxEffectiveThrust / theBlock.MaxThrust).Round(1)}%";
 		theBlock.ThrustOverride = (float)(thrust * theBlock.MaxThrust / theBlock.MaxEffectiveThrust);
+		errStr += $"\nOverride {theBlock.ThrustOverride}N";
 	}
 }
 
@@ -1658,10 +1665,13 @@ public class Rotor {
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
 		if (err > maxRPM) {
 			rotor.TargetVelocityRPM = maxRPM;
+			this.errStr += $"\nRPM Exceedes Max";
 		} else if ((err*-1) > maxRPM) {
 			rotor.TargetVelocityRPM = maxRPM * -1;
+			this.errStr += $"\nRPM Exceedes -Max";
 		} else {
 			rotor.TargetVelocityRPM = (float)err;
+			this.errStr += $"\nRPM: {(rotor.TargetVelocityRPM).Round(1)}";
 		}
 	}
 
