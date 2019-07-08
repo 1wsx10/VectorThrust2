@@ -513,10 +513,6 @@ public void Main(string argument, UpdateType runType) {
 	// ========== END OF MAIN ==========
 
 
-	foreach(Nacelle n in nacelles) {
-		Echo(n.errStr);
-		write(n.errStr);
-	}
 
 	// echo the errors with surface provider
 	Echo(surfaceProviderErrorStr);
@@ -1297,6 +1293,7 @@ void displayNacelles(List<Nacelle> nacelles) {
 
 public class Nacelle {
 	public String errStr;
+	public String DTerrStr;
 	public Program program;
 
 	// physical parts
@@ -1322,13 +1319,15 @@ public class Nacelle {
 		this.availableThrusters = new HashSet<Thruster>();
 		this.activeThrusters = new HashSet<Thruster>();
 		errStr = "";
+		DTerrStr = "";
 	}
 
 	// final calculations and setting physical components
 	public void go(bool jetpack, bool dampeners, float shipMass) {
-		errStr = "=======Nacelle=======\n";
-		// errStr += $"\nactive thrusters: {activeThrusters.Count}";
-		// errStr += $"\nall thrusters: {thrusters.Count}";
+		errStr = "=======Nacelle=======";
+		/*errStr += $"\nactive thrusters: {activeThrusters.Count}";
+		errStr += $"\nall thrusters: {thrusters.Count}";
+		errStr += $"\nrequired force: {(int)requiredVec.Length()}N\n";*/
 		totalEffectiveThrust = (float)calcTotalEffectiveThrust(activeThrusters);
 
 		double angleCos = 0;
@@ -1349,26 +1348,28 @@ public class Nacelle {
 		// maybe lerp this in the future
 		if(!thrustOn) {// Zero G
 			// errStr += "\nnot much thrust";
-			Vector3D direction = Vector3D.Zero;
+			Vector3D zero_G_accel = Vector3D.Zero;
 			if(program.mainController != null) {
-				direction = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+				zero_G_accel = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
 			} else {
-				direction = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+				zero_G_accel = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
 			}
 			if(dampeners) {
-				angleCos = rotor.setFromVec(direction * shipMass + requiredVec);
+				angleCos = rotor.setFromVec(zero_G_accel * shipMass + requiredVec);
 			} else {
-				angleCos = rotor.setFromVec((requiredVec - program.shipVelocity) + direction);
+				angleCos = rotor.setFromVec((requiredVec - program.shipVelocity) + zero_G_accel);
 			}
 			// errStr += $"\n{detectThrustCounter}";
 			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
 		} else {// In Gravity
 			// errStr += "\nlots of thrust";
 			angleCos = rotor.setFromVec(requiredVec);
-			// rotor.setFromVecOld(requiredVec);
+			//angleCos = rotor.setFromVecOld(requiredVec);
 		}
-		errStr += $"rotor '{rotor.theBlock.CustomName}':\n" + rotor.errStr;
-		rotor.errStr = "";
+		/*errStr += $"\n=======rotor=======";
+		errStr += $"\nname: '{rotor.theBlock.CustomName}'";
+		errStr += $"\n{rotor.errStr}";
+		errStr += $"\n-------rotor-------";*/
 
 
 		// the clipping value 'thrustModifier' defines how far the rotor can be away from the desired direction of thrust, and have the power still at max
@@ -1391,10 +1392,8 @@ public class Nacelle {
 		}
 
 		//set the thrust for each engine
-		errStr += $"\n=======thrusters=======";
+		// errStr += $"\n=======thrusters=======";
 		foreach(Thruster thruster in activeThrusters) {
-			errStr += $"\nthruster '{thruster.theBlock.CustomName}': {thruster.errStr}\n";
-			thruster.errStr = "";
 			// errStr += thrustOffset.progressBar();
 			Vector3D thrust = thrustOffset * requiredVec * thruster.theBlock.MaxEffectiveThrust / totalEffectiveThrust;
 			bool noThrust = thrust.LengthSquared() < 0.001f;
@@ -1409,9 +1408,11 @@ public class Nacelle {
 				thruster.IsOffBecauseDampeners = false;
 				thruster.IsOffBecauseJetpack = false;
 			}
+
+			// errStr += $"\nthruster '{thruster.theBlock.CustomName}': {thruster.errStr}\n";
 		}
-		errStr += $"\n-------thrusters-------";
-		errStr += $"\n-------Nacelle-------";
+		// errStr += $"\n-------thrusters-------";
+		// errStr += $"\n-------Nacelle-------";
 		oldJetpack = jetpack;
 	}
 
@@ -1466,11 +1467,11 @@ public class Nacelle {
 	}
 
 	public void detectThrustDirection() {
+		// DTerrStr = "";
 		detectThrustCounter++;
 		Vector3D engineDirection = Vector3D.Zero;
 		Vector3D engineDirectionNeg = Vector3D.Zero;
 		Vector3I thrustDir = Vector3I.Zero;
-		// Base6Directions.Direction rotTopUp = rotor.theBlock.Top.Orientation.TransformDirection(Base6Directions.Direction.Up);
 		Base6Directions.Direction rotTopUp = rotor.theBlock.Top.Orientation.Up;
 
 		// add all the thrusters effective power
@@ -1493,61 +1494,38 @@ public class Nacelle {
 		// get single most powerful direction
 		double max = Math.Max(engineDirection.Z, Math.Max(engineDirection.X, engineDirection.Y));
 		double min = Math.Min(engineDirectionNeg.Z, Math.Min(engineDirectionNeg.X, engineDirectionNeg.Y));
-		// errStr += $"\nmax:\n{Math.Round(max, 2)}";
-		// errStr += $"\nmin:\n{Math.Round(min, 2)}";
+		// DTerrStr += $"\nmax:\n{Math.Round(max, 2)}";
+		// DTerrStr += $"\nmin:\n{Math.Round(min, 2)}";
 		double maxAbs = 0;
 		if(max > -1*min) {
 			maxAbs = max;
 		} else {
 			maxAbs = min;
 		}
-		// errStr += $"\nmaxAbs:\n{Math.Round(maxAbs, 2)}";
+		// DTerrStr += $"\nmaxAbs:\n{Math.Round(maxAbs, 2)}";
 
 		// TODO: swap onbool for each thruster that isn't in this
-		if(Math.Abs(maxAbs - engineDirection.X) < 0.1) {
-			errStr += $"\nengineDirection.X";
-			if(engineDirection.X > 0) {
-				thrustDir.X = 1;
-			} else {
-				thrustDir.X = -1;
-			}
-		} else if(Math.Abs(maxAbs - engineDirection.Y) < 0.1) {
-			errStr += $"\nengineDirection.Y";
-			if(engineDirection.Y > 0) {
-				thrustDir.Y = 1;
-			} else {
-				thrustDir.Y = -1;
-			}
-		} else if(Math.Abs(maxAbs - engineDirection.Z) < 0.1) {
-			errStr += $"\nengineDirection.Z";
-			if(engineDirection.Z > 0) {
-				thrustDir.Z = 1;
-			} else {
-				thrustDir.Z = -1;
-			}
-		} else if(Math.Abs(maxAbs - engineDirectionNeg.X) < 0.1) {
-			errStr += $"\nengineDirectionNeg.X";
-			if(engineDirectionNeg.X < 0) {
-				thrustDir.X = -1;
-			} else {
-				thrustDir.X = 1;
-			}
-		} else if(Math.Abs(maxAbs - engineDirectionNeg.Y) < 0.1) {
-			errStr += $"\nengineDirectionNeg.Y";
-			if(engineDirectionNeg.Y < 0) {
-				thrustDir.Y = -1;
-			} else {
-				thrustDir.Y = 1;
-			}
-		} else if(Math.Abs(maxAbs - engineDirectionNeg.Z) < 0.1) {
-			errStr += $"\nengineDirectionNeg.Z";
-			if(engineDirectionNeg.Z < 0) {
-				thrustDir.Z = -1;
-			} else {
-				thrustDir.Z = 1;
-			}
+		float DELTA = 0.1f;
+		if(Math.Abs(maxAbs - engineDirection.X) < DELTA) {
+			// DTerrStr += $"\nengineDirection.X";
+			thrustDir.X = 1;
+		} else if(Math.Abs(maxAbs - engineDirection.Y) < DELTA) {
+			// DTerrStr += $"\nengineDirection.Y";
+			thrustDir.Y = 1;
+		} else if(Math.Abs(maxAbs - engineDirection.Z) < DELTA) {
+			// DTerrStr += $"\nengineDirection.Z";
+			thrustDir.Z = 1;
+		} else if(Math.Abs(maxAbs - engineDirectionNeg.X) < DELTA) {
+			// DTerrStr += $"\nengineDirectionNeg.X";
+			thrustDir.X = -1;
+		} else if(Math.Abs(maxAbs - engineDirectionNeg.Y) < DELTA) {
+			// DTerrStr += $"\nengineDirectionNeg.Y";
+			thrustDir.Y = -1;
+		} else if(Math.Abs(maxAbs - engineDirectionNeg.Z) < DELTA) {
+			// DTerrStr += $"\nengineDirectionNeg.Z";
+			thrustDir.Z = -1;
 		} else {
-			errStr += $"\nERROR (detectThrustDirection):\nmaxAbs doesn't match any engineDirection\n{maxAbs}\n{engineDirection}\n{engineDirectionNeg}";
+			// DTerrStr += $"\nERROR (detectThrustDirection):\nmaxAbs doesn't match any engineDirection\n{maxAbs}\n{engineDirection}\n{engineDirectionNeg}";
 			return;
 		}
 
@@ -1572,7 +1550,7 @@ public class Nacelle {
 		// put thrusters into the active list
 		Base6Directions.Direction thrDir = Base6Directions.GetDirection(thrustDir);
 		foreach(Thruster t in availableThrusters) {
-			Base6Directions.Direction thrustForward = t.theBlock.Orientation.TransformDirection(Base6Directions.Direction.Forward); // Exhaust goes this way
+			Base6Directions.Direction thrustForward = t.theBlock.Orientation.Forward; // Exhaust goes this way
 
 			if(thrDir == thrustForward) {
 				t.theBlock.Enabled = true;
@@ -1611,16 +1589,22 @@ public class Thruster {
 
 	// sets the thrust in newtons (N)
 	public void setThrust(double thrust) {
+		errStr = "";
+		/*errStr += $"\ntheBlock.Enabled: {theBlock.Enabled.toString()}";
+		errStr += $"\nIsOffBecauseDampeners: {IsOffBecauseDampeners.toString()}";
+		errStr += $"\nIsOffBecauseJetpack: {IsOffBecauseJetpack.toString()}";*/
+
 		if(thrust > theBlock.MaxThrust) {
 			thrust = theBlock.MaxThrust;
-			errStr += $"\nExceeding max thrust";
+			// errStr += $"\nExceeding max thrust";
 		} else if(thrust < 0) {
-			errStr += $"\nNegative Thrust";
+			// errStr += $"\nNegative Thrust";
 			thrust = 0;
 		}
-		errStr += $"\nEffective {(100*theBlock.MaxEffectiveThrust / theBlock.MaxThrust).Round(1)}%";
+
 		theBlock.ThrustOverride = (float)(thrust * theBlock.MaxThrust / theBlock.MaxEffectiveThrust);
-		errStr += $"\nOverride {theBlock.ThrustOverride}N";
+		/*errStr += $"\nEffective {(100*theBlock.MaxEffectiveThrust / theBlock.MaxThrust).Round(1)}%";
+		errStr += $"\nOverride {theBlock.ThrustOverride}N";*/
 	}
 }
 
@@ -1651,6 +1635,7 @@ public class Rotor {
 		// MatrixD inv = MatrixD.Invert(theBlock.Top.WorldMatrix);
 		// direction = Vector3D.TransformNormal(dir, inv);
 		this.direction = dir;
+		//TODO: for some reason, this is equal to rotor.worldmatrix.up
 	}
 
 	/*===| Part of Rotation By Equinox on the KSH discord channel. |===*/
@@ -1659,29 +1644,52 @@ public class Rotor {
 
 		Vector3D angle = Vector3D.Cross(targetDirection, currentDirection);
 		// Project onto rotor
-		double err = angle.Dot(rotor.WorldMatrix.Up);
+		double err = Vector3D.Dot(angle, rotor.WorldMatrix.Up);
+		double err2 = Vector3D.Dot(angle.normalized(), rotor.WorldMatrix.Up);
+		double diff = (rotor.WorldMatrix.Up - angle.normalized()).Length();
 
-		err *= errorScale * multiplier;
+		/*this.errStr += $"\nrotor.WorldMatrix.Up: {rotor.WorldMatrix.Up}";
+		this.errStr += $"\nangle: {Math.Acos(angleBetweenCos(angle, rotor.WorldMatrix.Up)) * 180.0 / Math.PI}";
+		this.errStr += $"\nerr: {err}";
+		this.errStr += $"\ndirection difference: {diff}";
+
+		this.errStr += $"\ncurrDir vs Up: {currentDirection.Dot(rotor.WorldMatrix.Up)}";
+		this.errStr += $"\ntargetDir vs Up: {targetDirection.Dot(rotor.WorldMatrix.Up)}";
+
+		this.errStr += $"\nmaxRPM: {maxRPM}";
+		this.errStr += $"\nerrorScale: {errorScale}";
+		this.errStr += $"\nmultiplier: {multiplier}";*/
+
+
+		double rpm = err * errorScale * multiplier;
+		//double rpm = err2 * errorScale * multiplier;
 		// errStr += $"\nSETTING ROTOR TO {err:N2}";
-		if (err > maxRPM) {
+		if (rpm > maxRPM) {
 			rotor.TargetVelocityRPM = maxRPM;
-			this.errStr += $"\nRPM Exceedes Max";
-		} else if ((err*-1) > maxRPM) {
+			// this.errStr += $"\nRPM Exceedes Max";
+		} else if ((rpm*-1) > maxRPM) {
 			rotor.TargetVelocityRPM = maxRPM * -1;
-			this.errStr += $"\nRPM Exceedes -Max";
+			// this.errStr += $"\nRPM Exceedes -Max";
 		} else {
-			rotor.TargetVelocityRPM = (float)err;
-			this.errStr += $"\nRPM: {(rotor.TargetVelocityRPM).Round(1)}";
+			rotor.TargetVelocityRPM = (float)rpm;
 		}
+		// this.errStr += $"\nRPM: {(rotor.TargetVelocityRPM).Round(5)}";
 	}
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
 	public double setFromVec(Vector3D desiredVec, float multiplier) {
-		desiredVec = desiredVec.reject(theBlock.WorldMatrix.Up);
+		errStr = "";
+		//desiredVec = desiredVec.reject(theBlock.WorldMatrix.Up);
 		desiredVec.Normalize();
-		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
+		//Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.WorldMatrix);
+		//                                                                 ^ only correct if it was built from the head
+		//                                                                   it needs to be based on the grid
+		Vector3D currentDir = Vector3D.TransformNormal(this.direction, theBlock.Top.CubeGrid.WorldMatrix);
 		PointRotorAtVector(theBlock, desiredVec, currentDir/*theBlock.Top.WorldMatrix.Forward*/, multiplier);
+
+		//this.errStr += $"\ncurrent dir: {currentDir}\ntarget dir: {desiredVec}\ndiff: {currentDir - desiredVec}";
+
 
 		return angleBetweenCos(currentDir, desiredVec, desiredVec.Length());
 	}
@@ -1692,22 +1700,26 @@ public class Rotor {
 
 	// this sets the rotor to face the desired direction in worldspace
 	// desiredVec doesn't have to be in-line with the rotors plane of rotation
-	public void setFromVecOld(Vector3D desiredVec) {
+	public double setFromVecOld(Vector3D desiredVec) {
 		desiredVec = desiredVec.reject(theBlock.WorldMatrix.Up);
 		if(Vector3D.IsZero(desiredVec) || !desiredVec.IsValid()) {
-			errStr += $"\nERROR (setFromVec()):\n\tdesiredVec is invalid\n\t{desiredVec}";
-			return;
+			errStr = $"\nERROR (setFromVec()):\n\tdesiredVec is invalid\n\t{desiredVec}";
+			return -1;
 		}
 
+		double des_vec_len = desiredVec.Length();
+		double angleCos = angleBetweenCos(theBlock.WorldMatrix.Forward, desiredVec, des_vec_len);
+
 		// angle between vectors
-		float angle = -(float)Math.Acos(angleBetweenCos(theBlock.WorldMatrix.Forward, desiredVec));
+		float angle = -(float)Math.Acos(angleCos);
 
 		//disambiguate
-		if(Math.Acos(angleBetweenCos(theBlock.WorldMatrix.Left, desiredVec)) > Math.PI/2) {
+		if(Math.Acos(angleBetweenCos(theBlock.WorldMatrix.Left, desiredVec, des_vec_len)) > Math.PI/2) {
 			angle = (float)(2*Math.PI - angle);
 		}
 
 		setPos(angle + (float)(offset/* * Math.PI / 180*/));
+		return angleCos;
 	}
 
 	// gets cos(angle between 2 vectors)
@@ -1723,9 +1735,9 @@ public class Rotor {
 	// cos returns a number between 0 and 1
 	// use Acos to get the angle
 	// doesn't calculate length because thats expensive
-	public double angleBetweenCos(Vector3D a, Vector3D b, double len) {
+	public double angleBetweenCos(Vector3D a, Vector3D b, double len_a_times_len_b) {
 		double dot = Vector3D.Dot(a, b);
-		return dot/len;
+		return dot/len_a_times_len_b;
 	}
 
 	// set the angle to be between 0 and 2pi radians (0 and 360 degrees)
@@ -1843,4 +1855,11 @@ public static class CustomProgramExtensions {
 			return val.toString();
 		else
 			return $"X:{val.X}\nY:{val.Y}\nZ:{val.Z}\n";
+	}
+
+	public static String toString(this bool val) {
+		if(val) {
+			return "true";
+		}
+		return "false";
 	}
