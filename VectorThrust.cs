@@ -500,6 +500,7 @@ public void Main(string argument, UpdateType runType) {
 		Vector3D req = g[0].requiredVec / g.Count;
 		for(int i = 0; i < g.Count; i++) {
 			g[i].requiredVec = req;
+			g[i].thrustModifierAbove = thrustModifierAbove;
 			g[i].thrustModifierBelow = thrustModifierBelow;
 			// Echo(g[i].errStr);
 			g[i].go(jetpack, dampeners, shipMass);
