@@ -158,6 +158,7 @@ public const bool ignoreHiddenBlocks = false;
 public double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
 public double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
 
+
 public const double thrustModifierAboveSpace = 0.01;
 public const double thrustModifierBelowSpace = 0.9;
 
