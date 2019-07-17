@@ -155,8 +155,15 @@ public const bool ignoreHiddenBlocks = false;
 // the above pictures are for 'thrustModifierAbove', the same principle applies for 'thrustModifierBelow', except it goes below the 0 line, instead of above the max power line.
 // the clipping value 'thrustModifier' defines how far the thruster can be away from the desired direction of thrust, and have the power still at desired power, otherwise it will be less
 // these values can only be between 0 and 1
-public const double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
-public const double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
+public double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
+public double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
+
+
+public const double thrustModifierAboveSpace = 0.01;
+public const double thrustModifierBelowSpace = 0.9;
+
+public const double thrustModifierAboveGrav = 0.1;
+public const double thrustModifierBelowGrav = 0.1; 
 
 // use control module... this can always be true
 public bool controlModule = true;
@@ -355,6 +362,12 @@ public void Main(string argument, UpdateType runType) {
 	float gravLength = (float)worldGrav.Length();
 	if(gravLength < gravCutoff) {
 		gravLength = zeroGAcceleration;
+		thrustModifierAbove = thrustModifierAboveSpace;
+		thrustModifierBelow = thrustModifierBelowSpace;
+	}
+	else {
+		thrustModifierAbove = thrustModifierAboveGrav;
+		thrustModifierBelow = thrustModifierBelowGrav;
 	}
 
 	Vector3D desiredVec = getMovementInput(argument);
@@ -488,6 +501,8 @@ public void Main(string argument, UpdateType runType) {
 		Vector3D req = g[0].requiredVec / g.Count;
 		for(int i = 0; i < g.Count; i++) {
 			g[i].requiredVec = req;
+			g[i].thrustModifierAbove = thrustModifierAbove;
+			g[i].thrustModifierBelow = thrustModifierBelow;
 			// Echo(g[i].errStr);
 			g[i].go(jetpack, dampeners, shipMass);
 			total += req.Length();
@@ -1301,6 +1316,9 @@ public class Nacelle {
 	public HashSet<Thruster> thrusters;// all the thrusters
 	public HashSet<Thruster> availableThrusters;// <= thrusters: the ones the user chooses to be used (ShowInTerminal)
 	public HashSet<Thruster> activeThrusters;// <= activeThrusters: the ones that are facing the direction that produces the most thrust (only recalculated if available thrusters changes)
+	
+	public double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
+	public double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
 
 	public bool oldJetpack = true;
 	public Vector3D requiredVec = Vector3D.Zero;
@@ -1310,6 +1328,7 @@ public class Nacelle {
 	public Vector3D currDir = Vector3D.Zero;
 
 	public bool thrustOn = false;
+
 
 	public Nacelle() {}// don't use this if it is possible for the instance to be kept
 	public Nacelle(Rotor rotor, Program program) {
@@ -1376,8 +1395,8 @@ public class Nacelle {
 		// if 'thrustModifier' is at 1, the thruster will be at full desired power when it is at 90 degrees from the direction of travel
 		// if 'thrustModifier' is at 0, the thruster will only be at full desired power when it is exactly at the direction of travel, (it's never exactly in-line)
 		// double thrustOffset = (angleCos + 1) / (1 + (1 - Program.thrustModifierAbove));//put it in some graphing calculator software where 'angleCos' is cos(x) and adjust the thrustModifier value between 0 and 1, then you can visualise it
-		double abo = Program.thrustModifierAbove;
-		double bel = Program.thrustModifierBelow;
+		double abo = thrustModifierAbove;
+		double bel = thrustModifierBelow;
 		if(abo > 1) { abo = 1; }
 		if(abo < 0) { abo = 0; }
 		if(bel > 1) { bel = 1; }
