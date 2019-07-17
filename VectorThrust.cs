@@ -155,15 +155,19 @@ public const bool ignoreHiddenBlocks = false;
 // the above pictures are for 'thrustModifierAbove', the same principle applies for 'thrustModifierBelow', except it goes below the 0 line, instead of above the max power line.
 // the clipping value 'thrustModifier' defines how far the thruster can be away from the desired direction of thrust, and have the power still at desired power, otherwise it will be less
 // these values can only be between 0 and 1
-public double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
-public double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
 
+// another way to look at it is:
+// set above to 1, its at 100% of desired power far from the direction of thrust
+// set below to 1, its at 000% of desired power far from the opposite direction of thrust
+
+// set above to 0, its at 100% of desired power only when it is exactly in the direction of thrust
+// set below to 0, its at 000% of desired power only when it is exactly in the opposite direction of thrust
 
 public const double thrustModifierAboveSpace = 0.01;
 public const double thrustModifierBelowSpace = 0.9;
 
 public const double thrustModifierAboveGrav = 0.1;
-public const double thrustModifierBelowGrav = 0.1; 
+public const double thrustModifierBelowGrav = 0.1;
 
 // use control module... this can always be true
 public bool controlModule = true;
@@ -567,6 +571,8 @@ public int programBlockCount = 0;
 
 public bool standby = startInStandby;
 public Vector3D shipVelocity = Vector3D.Zero;
+public double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
+public double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
 
 public bool justCompiled = true;
 public bool goToStandby = false;
@@ -1316,7 +1322,7 @@ public class Nacelle {
 	public HashSet<Thruster> thrusters;// all the thrusters
 	public HashSet<Thruster> availableThrusters;// <= thrusters: the ones the user chooses to be used (ShowInTerminal)
 	public HashSet<Thruster> activeThrusters;// <= activeThrusters: the ones that are facing the direction that produces the most thrust (only recalculated if available thrusters changes)
-	
+
 	public double thrustModifierAbove = 0.1;// how close the rotor has to be to target position before the thruster gets to full power
 	public double thrustModifierBelow = 0.1;// how close the rotor has to be to opposite of target position before the thruster gets to 0 power
 
