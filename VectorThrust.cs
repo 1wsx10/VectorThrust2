@@ -507,6 +507,12 @@ public void Main(string argument, UpdateType runType) {
 
 
 
+
+
+
+
+	// ========== DISTRIBUTE THE FORCE EVENLY BETWEEN NACELLES ==========
+
 	// hysteresis
 	if(requiredVec.Length() > lowThrustCutOn * gravCutoff * shipMass) {//TODO: this causes problems if there are many small nacelles
 		thrustOn = true;
@@ -532,11 +538,6 @@ public void Main(string argument, UpdateType runType) {
 			requiredVec = (requiredVec - shipVelocity) + zero_G_accel;
 		}
 	}
-
-
-
-
-	// ========== DISTRIBUTE THE FORCE EVENLY BETWEEN NACELLES ==========
 
 	// update thrusters on/off and re-check nacelles direction
 	bool gravChanged = Math.Abs(lastGrav - gravLength) > 0.05f;
