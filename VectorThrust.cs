@@ -539,6 +539,15 @@ public void Main(string argument, UpdateType runType) {
 		}
 	}
 
+	if(!thrustOn) {
+		// TODO:
+		// make a thruster mode where all the thrusters point in a fixed position, in a kind-of tripod pattern around required vector.
+		// the nacelles don't turn after they reach the desired position.
+		// the thrusters fire to slow to a complete stop in this mode.
+
+		// this is useful because it avoids moving nacelles. moving nacelles are useless with a small required vec because they invalidate requiredVec
+	}
+
 	// update thrusters on/off and re-check nacelles direction
 	bool gravChanged = Math.Abs(lastGrav - gravLength) > 0.05f;
 	lastGrav = gravLength;
