@@ -55,6 +55,18 @@ public const float accelBase = 1.5f;//accel = defaultAccel * g * base^exponent
 // multiplier for dampeners, higher is stronger dampeners
 public const float dampenersModifier = 0.1f;
 
+
+// default acceleration in situations with 0 (or low) gravity
+public const float zeroGAcceleration = 9.81f;
+// if gravity becomes less than this, zeroGAcceleration will kick in
+public const float gravCutoff = 0.1f * zeroGAcceleration;
+
+
+// determines when the thrusters will cut out in space.
+public const float lowThrustCutOff = 0.1f;
+// determines when the thrusters will turn back on. this should always be greater than cutoff
+public const float lowThrustCutOn = 1.0f;
+
 // true: only main cockpit can be used even if there is no one in the main cockpit
 // false: any cockpits can be used, but if there is someone in the main cockpit, it will only obey the main cockpit
 // no main cockpit: any cockpits can be used
@@ -119,12 +131,6 @@ public struct BA {
 
 
 
-// default acceleration in situations with 0 (or low) gravity
-public const float zeroGAcceleration = 9.81f;
-// if gravity becomes less than this, zeroGAcceleration will kick in
-public const float gravCutoff = 0.1f * 9.81f;
-
-
 // DEPRECATED: use the tags instead
 // only use blocks that have 'show in terminal' set to true
 public const bool ignoreHiddenBlocks = false;
@@ -168,6 +174,62 @@ public const double thrustModifierBelowSpace = 0.9;
 
 public const double thrustModifierAboveGrav = 0.1;
 public const double thrustModifierBelowGrav = 0.1;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // use control module... this can always be true
 public bool controlModule = true;
@@ -254,6 +316,8 @@ public void Main(string argument, UpdateType runType) {
 	argument.Contains(cruiseArg.ToLower()) ||
 	argument.Contains(jetpackArg.ToLower()) ||
 	argument.Contains(standbytogArg.ToLower()) ||
+	argument.Contains(standbyonArg.ToLower()) ||
+	argument.Contains(standbyoffArg.ToLower()) ||
 	argument.Contains(raiseAccelArg.ToLower()) ||
 	argument.Contains(lowerAccelArg.ToLower()) ||
 	argument.Contains(resetAccelArg.ToLower()) ||
@@ -443,6 +507,31 @@ public void Main(string argument, UpdateType runType) {
 
 
 
+	// hysteresis
+	if(requiredVec.Length() > lowThrustCutOn * gravCutoff * shipMass) {//TODO: this causes problems if there are many small nacelles
+		thrustOn = true;
+	}
+	if(requiredVec.Length() < lowThrustCutOff * gravCutoff * shipMass) {
+		thrustOn = false;
+	}
+
+	//Echo($"thrustOn: {thrustOn} \n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass), 2)}\n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass*0.01), 2)}");
+
+	// maybe lerp this in the future
+	if(!thrustOn) {// Zero G
+		//Echo("\nnot much thrust");
+		Vector3D zero_G_accel = Vector3D.Zero;
+		if(mainController != null) {
+			zero_G_accel = (mainController.theBlock.WorldMatrix.Down + mainController.theBlock.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+		} else {
+			zero_G_accel = (usableControllers[0].theBlock.WorldMatrix.Down + usableControllers[0].theBlock.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
+		}
+		if(dampeners) {
+			requiredVec = zero_G_accel * shipMass + requiredVec;
+		} else {
+			requiredVec = (requiredVec - shipVelocity) + zero_G_accel;
+		}
+	}
 
 
 
@@ -585,6 +674,7 @@ public bool applyTags = false;
 public bool removeTags = false;
 public bool greedy = true;
 public float lastGrav = 0;
+public bool thrustOn = false;
 
 public Dictionary<string, object> CMinputs = null;
 
@@ -1333,7 +1423,6 @@ public class Nacelle {
 	public int detectThrustCounter = 0;
 	public Vector3D currDir = Vector3D.Zero;
 
-	public bool thrustOn = false;
 
 
 	public Nacelle() {}// don't use this if it is possible for the instance to be kept
@@ -1355,42 +1444,7 @@ public class Nacelle {
 		errStr += $"\nrequired force: {(int)requiredVec.Length()}N\n";*/
 		totalEffectiveThrust = (float)calcTotalEffectiveThrust(activeThrusters);
 
-		double angleCos = 0;
-
-		// TODO: fix this so that it cuts-off when the dampeners are on
-		// TODO: fix the thruster on/off code
-
-		// hysteresis
-		if(requiredVec.Length() > gravCutoff * shipMass) {//TODO: this causes problems if there are many small nacelles
-			thrustOn = true;
-		}
-		if(requiredVec.Length() < 0.1 * gravCutoff * shipMass) {
-			thrustOn = false;
-		}
-
-		// errStr += $"thrustOn: {thrustOn} \n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass), 2)}\n{Math.Round(requiredVec.Length()/(gravCutoff*shipMass*0.01), 2)}";
-
-		// maybe lerp this in the future
-		if(!thrustOn) {// Zero G
-			// errStr += "\nnot much thrust";
-			Vector3D zero_G_accel = Vector3D.Zero;
-			if(program.mainController != null) {
-				zero_G_accel = (program.mainController.WorldMatrix.Down + program.mainController.WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
-			} else {
-				zero_G_accel = (program.usableControllers[0].WorldMatrix.Down + program.usableControllers[0].WorldMatrix.Backward) * zeroGAcceleration / 1.414f;
-			}
-			if(dampeners) {
-				angleCos = rotor.setFromVec(zero_G_accel * shipMass + requiredVec);
-			} else {
-				angleCos = rotor.setFromVec((requiredVec - program.shipVelocity) + zero_G_accel);
-			}
-			// errStr += $"\n{detectThrustCounter}";
-			// rotor.setFromVecOld((controller.WorldMatrix.Down * zeroGAcceleration) + requiredVec);
-		} else {// In Gravity
-			// errStr += "\nlots of thrust";
-			angleCos = rotor.setFromVec(requiredVec);
-			//angleCos = rotor.setFromVecOld(requiredVec);
-		}
+		double angleCos = rotor.setFromVec(requiredVec);
 		/*errStr += $"\n=======rotor=======";
 		errStr += $"\nname: '{rotor.theBlock.CustomName}'";
 		errStr += $"\n{rotor.errStr}";
@@ -1422,10 +1476,10 @@ public class Nacelle {
 			// errStr += thrustOffset.progressBar();
 			Vector3D thrust = thrustOffset * requiredVec * thruster.theBlock.MaxEffectiveThrust / totalEffectiveThrust;
 			bool noThrust = thrust.LengthSquared() < 0.001f;
-			if(!jetpack || !thrustOn || noThrust) {
+			if(!jetpack || !program.thrustOn || noThrust) {
 				thruster.setThrust(0);
 				thruster.theBlock.Enabled = false;
-				thruster.IsOffBecauseDampeners = !thrustOn || noThrust;
+				thruster.IsOffBecauseDampeners = !program.thrustOn || noThrust;
 				thruster.IsOffBecauseJetpack = !jetpack;
 			} else {
 				thruster.setThrust(thrust);
