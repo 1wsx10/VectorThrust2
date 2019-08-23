@@ -11,7 +11,7 @@ public bool jetpack = false;
 public bool cruise = false;
 
 // make cruise mode act more like an airplane
-public const bool cruisePlane = false;
+public bool cruisePlane = false;
 
 // this is used to identify blocks as belonging to this programmable block.
 // pass the '%applyTags' argument, and the program will spread its tag across all blocks it controls.
@@ -39,7 +39,7 @@ public const bool startInStandby = true;
 // change this is you don't want the script to start in standby... please only use this if you have permission from the server owner
 
 // set to -1 for the fastest speed in the game (changes with mods)
-public const float maxRotorRPM = 60f;
+public float maxRotorRPM = 60f;
 
 public const float defaultAccel = 1f;//this is the default target acceleration you see on the display
 // if you want to change the default, change this
@@ -133,7 +133,8 @@ public struct BA {
 
 // DEPRECATED: use the tags instead
 // only use blocks that have 'show in terminal' set to true
-public const bool ignoreHiddenBlocks = false;
+public bool ignoreHiddenBlocks = false;
+// this can't be const, because it causes unreachable code warning, which now can't be disabled
 
 
 
@@ -234,9 +235,6 @@ public const double thrustModifierBelowGrav = 0.1;
 // use control module... this can always be true
 public bool controlModule = true;
 
-// remove unreachable code warning
-#pragma warning disable 0162
-
 public Program() {
 	Echo("Just Compiled");
 	programCounter = 0;
@@ -257,7 +255,6 @@ public long gotNacellesCount;
 public long updateNacellesCount;
 
 public void Main(string argument, UpdateType runType) {
-
 
 
 
@@ -1344,7 +1341,7 @@ void getNacelles(List<IMyMotorStator> rotors, List<IMyThrust> thrusters) {
 
 		// it's not set to not be a nacelle rotor
 		// it's topgrid is not the programmable blocks grid
-		Rotor rotor = new Rotor(current);
+		Rotor rotor = new Rotor(current, this);
 		this.nacelles.Add(new Nacelle(rotor, this));
 	}
 
@@ -1518,7 +1515,7 @@ public class Nacelle {
 		errStr += "validating thrusters: (jetpack {jetpack})\n";
 		foreach(Thruster curr in thrusters) {
 
-			bool shownAndFunctional = (curr.theBlock.ShowInTerminal || !ignoreHiddenBlocks) && curr.theBlock.IsFunctional;
+			bool shownAndFunctional = (curr.theBlock.ShowInTerminal || !program.ignoreHiddenBlocks) && curr.theBlock.IsFunctional;
 			if(availableThrusters.Contains(curr)) {//is available
 				errStr += "in available thrusters\n";
 
@@ -1536,7 +1533,7 @@ public class Nacelle {
 
 			} else {//not available
 				errStr += "not in available thrusters\n";
-				if(ignoreHiddenBlocks) {
+				if(program.ignoreHiddenBlocks) {
 					errStr += $"ShowInTerminal {curr.theBlock.ShowInTerminal}\n";
 				}
 				errStr += $"IsWorking {curr.theBlock.IsWorking}\n";
@@ -1699,18 +1696,19 @@ public class Rotor : BlockWrapper<IMyMotorStator> {
 	// Depreciated, this is for the old setFromVec
 	public float offset = 0;// radians
 
+	public Program program;
 	public Vector3D direction = Vector3D.Zero;//offset relative to the head
 
 	public string errStr = "";
-	float maxRPM = maxRotorRPM;
+	float maxRPM;
 
-	public Rotor(IMyMotorStator rotor) : base(rotor) {
+	public Rotor(IMyMotorStator rotor, Program program) : base(rotor) {
+		this.program = program;
 
-
-		if(maxRotorRPM <= 0) {
+		if(program.maxRotorRPM <= 0) {
 			maxRPM = rotor.GetMaximum<float>("Velocity");
 		} else {
-			maxRPM = maxRotorRPM;
+			maxRPM = program.maxRotorRPM;
 		}
 	}
 
