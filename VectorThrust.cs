@@ -292,7 +292,6 @@ public void Main(string argument, UpdateType runType) {
 	UpdateType valid_argument_updates = UpdateType.None;
 	valid_argument_updates |= UpdateType.Terminal;
 	valid_argument_updates |= UpdateType.Trigger;
-	valid_argument_updates |= UpdateType.Antenna;
 	// valid_argument_updates |= UpdateType.Mod;
 	valid_argument_updates |= UpdateType.Script;
 	// valid_argument_updates |= UpdateType.Update1;
@@ -944,12 +943,27 @@ public Vector3D getMovementInput(string arg) {
 			}
 		} else {
 
-			// dampeners = false;
-			foreach(ShipController cont in usableControllers) {
-				if(cont.theBlock.IsUnderControl) {
-					if(cont.theBlock.DampenersOverride != cont.lastDampener) {
+			if(changeDampeners) {
+				// make all conform
+				foreach(ShipController cont in usableControllers) {
+					cont.setDampener(dampeners);
+				}
+			} else {
+
+				// check if any are different to us
+				bool any_different = false;
+				foreach(ShipController cont in usableControllers) {
+					if(cont.theBlock.DampenersOverride != dampeners) {
+						any_different = true;
 						dampeners = cont.theBlock.DampenersOverride;
-						cont.lastDampener = cont.theBlock.DampenersOverride;
+						break;
+					}
+				}
+
+				if(any_different) {
+					// update all others to new value too
+					foreach(ShipController cont in usableControllers) {
+						cont.setDampener(dampeners);
 					}
 				}
 			}
@@ -1864,6 +1878,11 @@ public class ShipController : BlockWrapper<IMyShipController> {
 
 	public ShipController(IMyShipController theBlock) : base(theBlock) {
 		lastDampener = theBlock.DampenersOverride;
+	}
+
+	public void setDampener(bool val) {
+		lastDampener = val;
+		theBlock.DampenersOverride = val;
 	}
 
 }
